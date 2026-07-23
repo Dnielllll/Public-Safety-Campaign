@@ -1,0 +1,142 @@
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+
+import PublicLayout from "@/layouts/PublicLayout";
+import DashboardLayout from "@/layouts/DashboardLayout";
+import RequireRole from "@/routes/RequireRole";
+
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import Unauthorized from "@/pages/Unauthorized";
+import NotFound from "@/pages/NotFound";
+
+// Public subsystem (3.1 – 3.8)
+import PublicDashboard from "@/pages/public/PublicDashboard";
+import SafetyCampaigns from "@/pages/public/SafetyCampaigns";
+import VoiceAnnouncements from "@/pages/public/VoiceAnnouncements";
+import Notifications from "@/pages/public/Notifications";
+import Feedback from "@/pages/public/Feedback";
+import EmergencyInfo from "@/pages/public/EmergencyInfo";
+import AboutBarangay from "@/pages/public/AboutBarangay";
+import Surveys from "@/pages/public/Surveys";
+import Profile from "@/pages/public/Profile";
+
+// Admin subsystem (1.1 – 1.12)
+import AdminDashboard from "@/pages/admin/Dashboard";
+import UserManagement from "@/pages/admin/UserManagement";
+import CampaignManagement from "@/pages/admin/CampaignManagement";
+import AIContentAssistant from "@/pages/admin/AIContentAssistant";
+import ContentManagement from "@/pages/admin/ContentManagement";
+import CampaignApproval from "@/pages/admin/CampaignApproval";
+import Distribution from "@/pages/admin/Distribution";
+import NotificationManagement from "@/pages/admin/NotificationManagement";
+import FeedbackManagement from "@/pages/admin/FeedbackManagement";
+import AnalyticsReports from "@/pages/admin/AnalyticsReports";
+import ProcessMonitoring from "@/pages/admin/ProcessMonitoring";
+import AuditTrail from "@/pages/admin/AuditTrail";
+import SystemSettings from "@/pages/admin/SystemSettings";
+
+// Staff subsystem (2.1 – 2.9)
+import StaffDashboard from "@/pages/staff/Dashboard";
+import StaffCampaigns from "@/pages/staff/Campaigns";
+import StaffContent from "@/pages/staff/Content";
+import StaffAIAssistant from "@/pages/staff/AIAssistant";
+import StaffSubmission from "@/pages/staff/Submission";
+import StaffNotifications from "@/pages/staff/Notifications";
+import StaffFeedback from "@/pages/staff/Feedback";
+import StaffReports from "@/pages/staff/Reports";
+import StaffProfile from "@/pages/staff/Profile";
+
+export default function App() {
+  return (
+    <Routes>
+      {/* Auth */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/unauthorized" element={<Unauthorized />} />
+
+      {/* Public subsystem — residents (some routes browsable without login) */}
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<PublicDashboard />} />
+        <Route path="/campaigns" element={<SafetyCampaigns />} />
+        <Route path="/campaigns/:id" element={<SafetyCampaigns />} />
+        <Route path="/voice-announcements" element={<VoiceAnnouncements />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="/emergency" element={<EmergencyInfo />} />
+        <Route path="/about" element={<AboutBarangay />} />
+        <Route
+          path="/profile"
+          element={
+            <RequireRole roles={["public", "admin", "staff"]}>
+              <Profile />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/feedback"
+          element={
+            <RequireRole roles={["public", "admin", "staff"]}>
+              <Feedback />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/surveys"
+          element={
+            <RequireRole roles={["public", "admin", "staff"]}>
+              <Surveys />
+            </RequireRole>
+          }
+        />
+      </Route>
+
+      {/* Admin subsystem */}
+      <Route
+        path="/admin"
+        element={
+          <RequireRole roles={["admin"]}>
+            <DashboardLayout role="admin" />
+          </RequireRole>
+        }
+      >
+        <Route index element={<AdminDashboard />} />
+        <Route path="users" element={<UserManagement />} />
+        <Route path="campaigns" element={<CampaignManagement />} />
+        <Route path="ai-assistant" element={<AIContentAssistant />} />
+        <Route path="content" element={<ContentManagement />} />
+        <Route path="approvals" element={<CampaignApproval />} />
+        <Route path="distribution" element={<Distribution />} />
+        <Route path="notifications" element={<NotificationManagement />} />
+        <Route path="feedback" element={<FeedbackManagement />} />
+        <Route path="reports" element={<AnalyticsReports />} />
+        <Route path="process-monitoring" element={<ProcessMonitoring />} />
+        <Route path="audit-trail" element={<AuditTrail />} />
+        <Route path="settings" element={<SystemSettings />} />
+        <Route path="profile" element={<Profile />} />
+      </Route>
+
+      {/* Staff subsystem */}
+      <Route
+        path="/staff"
+        element={
+          <RequireRole roles={["staff"]}>
+            <DashboardLayout role="staff" />
+          </RequireRole>
+        }
+      >
+        <Route index element={<StaffDashboard />} />
+        <Route path="campaigns" element={<StaffCampaigns />} />
+        <Route path="content" element={<StaffContent />} />
+        <Route path="ai-assistant" element={<StaffAIAssistant />} />
+        <Route path="submission" element={<StaffSubmission />} />
+        <Route path="notifications" element={<StaffNotifications />} />
+        <Route path="feedback" element={<StaffFeedback />} />
+        <Route path="reports" element={<StaffReports />} />
+        <Route path="profile" element={<StaffProfile />} />
+      </Route>
+
+      <Route path="/404" element={<NotFound />} />
+      <Route path="*" element={<Navigate to="/404" replace />} />
+    </Routes>
+  );
+}

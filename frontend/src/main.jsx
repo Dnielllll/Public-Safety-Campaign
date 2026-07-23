@@ -1,0 +1,63 @@
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import App from "./App.jsx";
+import { AuthProvider, useAuth } from "./hooks/useAuth.jsx";
+import "./index.css";
+
+// Error boundary to catch rendering errors
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("Error caught by boundary:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '20px', fontFamily: 'monospace' }}>
+          <h1>Something went wrong</h1>
+          <pre>{this.state.error?.toString()}</pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function AppWithAuth() {
+  const { loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading Barangay 178 Safety System...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  return <App />;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppWithAuth />
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
+  </React.StrictMode>
+);

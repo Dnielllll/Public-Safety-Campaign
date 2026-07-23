@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (Supabase-compatible)
+  postgres:
+    image: postgres:15-alpine
+    container_name: public-campaign-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: superteamdaniel12345
+      POSTGRES_PORT: 5432
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - campaign-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Laravel Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: public-campaign-backend
+    restart: unless-stopped
+    working_dir: /var/www/html
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      APP_URL: ${APP_URL:-http://localhost:8000}
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: postgres
+      DB_USERNAME: postgres
+      DB_PASSWORD: superteamdaniel12345
+      SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS:-localhost,localhost:5173}
+      SESSION_DRIVER: file
+    ports:
+      - "8000:9000"
+    volumes:
+      - ./backend:/var/www/html
+      - backend_storage:/var/www/html/storage
+      - backend_cache:/var/www/html/bootstrap/cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - campaign-network
+
+  # Nginx for Backend
+  nginx-backend:
+    image: nginx:alpine
+    container_name: public-campaign-nginx-backend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./backend:/var/www/html
+      - ./backend/nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - backend
+    networks:
+      - campaign-network
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: public-campaign-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    environment:
+      VITE_SUPABASE_URL: https://ojnlzjhdwxruanusepaw.supabase.co
+      VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qbmx6amhkd3hydWFudXNlcGF3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDI5NzY2NSwiZXhwIjoyMDk5ODczNjY1fQ.GRl-7z63hTEJos7eNyUL_stFxrUFvMubCfQR-WxhwYA
+    depends_on:
+      - backend
+    networks:
+      - campaign-network
+
+  # Redis for caching and queues (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: public-campaign-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - campaign-network
+    command: redis-server --appendonly yes
+
+networks:
+  campaign-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  backend_storage:
+    driver: local
+  backend_cache:
+    driver: local
+  redis_data:
+    driver: local

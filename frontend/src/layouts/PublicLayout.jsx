@@ -1,0 +1,341 @@
+import React, { useState } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Bell, MessageSquare, Siren, User, Home, Megaphone, Volume2, ClipboardList, LogOut, Menu, X, Building2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth.jsx";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import LogoutOverlay from "@/components/LogoutOverlay.jsx";
+import AIChatbot from "@/components/AIChatbot.jsx";
+
+const navItems = [
+  { to: "/", label: "Home", icon: Home },
+  { to: "/campaigns", label: "Safety Campaigns", icon: Megaphone },
+  { to: "/voice-announcements", label: "AI Voice", icon: Volume2 },
+  { to: "/notifications", label: "Notifications", icon: Bell },
+  { to: "/feedback", label: "Feedback", icon: MessageSquare },
+  { to: "/surveys", label: "Surveys", icon: ClipboardList },
+  { to: "/emergency", label: "Emergency Info", icon: Siren },
+  { to: "/about", label: "About Barangay", icon: Building2 },
+];
+
+export default function PublicLayout() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = () => {
+    setLoggingOut(true);
+  };
+
+  const doLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
+
+  // Guest view: Top navigation bar
+  if (!user || !user.role) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        {/* Top navigation bar */}
+        <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur shadow-sm">
+          <div className="container flex h-16 items-center justify-between">
+            <Link to="/" className="flex items-center gap-2 shrink-0">
+              <img src="/logo.png" alt="Barangay 178 Seal" className="h-10 w-10 rounded-full object-contain" />
+              <div className="leading-tight hidden sm:block">
+                <p className="font-display font-bold text-sm text-primary">Barangay 178</p>
+                <p className="text-xs text-muted-foreground">Safety Campaign System</p>
+              </div>
+            </Link>
+
+            {/* Desktop navigation */}
+            <nav className="hidden md:flex items-center gap-1">
+              {navItems.map((item) => {
+                // Hide feedback and surveys from anonymous users
+                if (item.to === "/feedback" || item.to === "/surveys") return null;
+
+                const Icon = item.icon;
+                const active = pathname === item.to;
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            <div className="flex items-center gap-2">
+              <Button size="sm" asChild className="hidden sm:flex">
+                <Link to="/login">Log in</Link>
+              </Button>
+              <Button size="sm" asChild variant="outline" className="hidden sm:flex">
+                <Link to="/register">Sign up</Link>
+              </Button>
+              <button
+                className="md:hidden rounded-md p-2 text-muted-foreground hover:bg-secondary"
+                onClick={() => setMobileOpen((o) => !o)}
+              >
+                {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile navigation drawer */}
+          {mobileOpen && (
+            <nav className="md:hidden border-t border-border bg-white px-4 pb-4 pt-2 flex flex-col gap-1">
+              {navItems.map((item) => {
+                if (item.to === "/feedback" || item.to === "/surveys") return null;
+
+                const Icon = item.icon;
+                const active = pathname === item.to;
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    onClick={() => setMobileOpen(false)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+              <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-border">
+                <Button size="sm" asChild className="w-full">
+                  <Link to="/login" onClick={() => setMobileOpen(false)}>Log in</Link>
+                </Button>
+                <Button size="sm" asChild variant="outline" className="w-full">
+                  <Link to="/register" onClick={() => setMobileOpen(false)}>Sign up</Link>
+                </Button>
+              </div>
+            </nav>
+          )}
+        </header>
+
+        <main className="flex-1">
+          <Outlet />
+        </main>
+
+        <footer className="border-t border-border py-8 mt-16 bg-white">
+          <div className="container flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <img src="/logo.png" alt="Barangay 178 Seal" className="h-8 w-8 rounded-full object-contain" />
+              <p>© {new Date().getFullYear()} Barangay 178, Camarin, North Caloocan City.</p>
+            </div>
+            <p>Safety Campaign Management System · AI Voice by Built-in Text-to-Speech</p>
+          </div>
+        </footer>
+        <AIChatbot />
+      </div>
+    );
+  }
+
+  // Authenticated resident view: Sidebar navigation (similar to Admin/Staff)
+  // Only show sidebar if user has valid 'public' role
+  if (user.role === 'public') {
+    return (
+      <div className="min-h-screen flex bg-background">
+        {loggingOut && <LogoutOverlay onDone={doLogout} />}
+        {/* Sidebar - Desktop */}
+        <aside className="hidden lg:flex flex-col w-64 border-r border-border bg-white sticky top-0 h-screen">
+          {/* Logo section */}
+          <div className="p-4 border-b border-border">
+            <Link to="/" className="flex items-center gap-2">
+              <img src="/logo.png" alt="Barangay 178 Seal" className="h-10 w-10 rounded-full object-contain" />
+              <div className="leading-tight">
+                <p className="font-display font-bold text-sm text-primary">Barangay 178</p>
+                <p className="text-xs text-muted-foreground">Resident Portal</p>
+              </div>
+            </Link>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 overflow-y-auto p-3 space-y-1 scrollbar-thin">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = pathname === item.to;
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* User section at bottom */}
+          <div className="p-4 border-t border-border">
+            <div className="flex flex-col gap-2">
+              <Link to="/profile" className="flex items-center gap-2 p-2 rounded-md hover:bg-secondary transition-colors">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback>{user.name?.[0] ?? "U"}</AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium truncate">{user.name}</span>
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-destructive hover:bg-secondary rounded-md transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                Log out
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        {/* Mobile layout */}
+        <div className="flex-1 flex flex-col lg:hidden">
+          {/* Mobile header */}
+          <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur shadow-sm">
+            <div className="container flex h-16 items-center justify-between">
+              <Link to="/" className="flex items-center gap-2 shrink-0">
+                <img src="/logo.png" alt="Barangay 178 Seal" className="h-10 w-10 rounded-full object-contain" />
+                <div className="leading-tight hidden sm:block">
+                  <p className="font-display font-bold text-sm text-primary">Barangay 178</p>
+                  <p className="text-xs text-muted-foreground">Resident Portal</p>
+                </div>
+              </Link>
+
+              <div className="flex items-center gap-2">
+                <Link to="/profile">
+                  <Avatar>
+                    <AvatarFallback>{user.name?.[0] ?? "U"}</AvatarFallback>
+                  </Avatar>
+                </Link>
+                <button
+                  className="rounded-md p-2 text-muted-foreground hover:bg-secondary"
+                  onClick={() => setMobileOpen((o) => !o)}
+                >
+                  {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile nav drawer */}
+            {mobileOpen && (
+              <nav className="border-t border-border bg-white px-4 pb-4 pt-2 flex flex-col gap-1 max-h-[70vh] overflow-y-auto">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = pathname === item.to;
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => setMobileOpen(false)}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                        active
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setMobileOpen(false);
+                  }}
+                  className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm text-muted-foreground hover:text-destructive hover:bg-secondary transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Log out
+                </button>
+              </nav>
+            )}
+          </header>
+
+          <main className="flex-1">
+            <Outlet />
+          </main>
+
+          <footer className="border-t border-border py-8 mt-16 bg-white">
+            <div className="container flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <img src="/logo.png" alt="Barangay 178 Seal" className="h-8 w-8 rounded-full object-contain" />
+                <p>© {new Date().getFullYear()} Barangay 178, Camarin, North Caloocan City.</p>
+              </div>
+              <p>Safety Campaign Management System · AI Voice by Google Cloud Text-to-Speech</p>
+            </div>
+          </footer>
+        </div>
+
+        {/* Desktop main content */}
+        <div className="hidden lg:flex flex-1 flex-col">
+          <main className="flex-1">
+            <Outlet />
+          </main>
+
+          <footer className="border-t border-border py-8 mt-16 bg-white">
+            <div className="container flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <img src="/logo.png" alt="Barangay 178 Seal" className="h-8 w-8 rounded-full object-contain" />
+                <p>© {new Date().getFullYear()} Barangay 178, Camarin, North Caloocan City.</p>
+              </div>
+              <p>Safety Campaign Management System · AI Voice by Google Cloud Text-to-Speech</p>
+            </div>
+          </footer>
+        </div>
+      </div>
+    );
+  }
+
+  // For admin/staff users, they should use DashboardLayout, not PublicLayout
+  // This is handled by routing in App.jsx, so return null to prevent rendering
+  if (user.role === 'admin' || user.role === 'staff') {
+    return null;
+  }
+
+  // Fallback for any other case
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+      <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur shadow-sm">
+        <div className="container flex h-16 items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 shrink-0">
+            <img src="/logo.png" alt="Barangay 178 Seal" className="h-10 w-10 rounded-full object-contain" />
+            <div className="leading-tight hidden sm:block">
+              <p className="font-display font-bold text-sm text-primary">Barangay 178</p>
+              <p className="text-xs text-muted-foreground">Safety Campaign System</p>
+            </div>
+          </Link>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={handleLogout}>Log out</Button>
+          </div>
+        </div>
+      </header>
+      <main className="flex-1">
+        <Outlet />
+      </main>
+      <AIChatbot />
+    </div>
+  );
+}
