@@ -205,6 +205,11 @@ CREATE POLICY "Admins can view all users" ON public.users
     )
   );
 
+-- Allow authenticated users to insert their own profile (self-healing if trigger missed)
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.users;
+CREATE POLICY "Users can insert own profile" ON public.users
+  FOR INSERT WITH CHECK (auth.uid() = id);
+
 DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
 CREATE POLICY "Users can update own profile" ON public.users
   FOR UPDATE USING (auth.uid() = id);

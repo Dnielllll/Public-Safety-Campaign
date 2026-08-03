@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase, supabaseHelpers } from "@/lib/supabase.js";
 
 const AuthContext = createContext(null);
@@ -7,11 +7,55 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Helper: given a Supabase auth session, fetch the public.users profile
-  const loadProfile = async (authUser) => {
+  // Helper: given a Supabase auth user, ensure public.users profile exists
+  // This self-heals if the handle_new_user trigger didn't fire
+  const ensureProfile = async (authUser) => {
     if (!authUser) return null;
-    const { data: profile } = await supabaseHelpers.getUserById(authUser.id);
-    return profile || null;
+
+    // Build fallback profile from auth metadata (always available)
+    const meta = authUser.user_metadata || {};
+    const fallbackProfile = {
+      id: authUser.id,
+      email: authUser.email,
+      name: meta.name || authUser.email?.split("@")[0] || "User",
+      role: meta.role || "public",
+      phone: meta.phone || null,
+      address: meta.address || null,
+      is_active: true,
+      _fromMetadata: true, // flag to know this came from fallback
+    };
+
+    try {
+      // Try to fetch existing profile
+      const { data: profile, error } = await supabaseHelpers.getUserById(authUser.id);
+      if (profile) return profile;
+
+      // Profile missing — auto-create from auth user metadata
+      console.warn("public.users profile missing for", authUser.id, "— auto-creating from auth metadata");
+      console.log("Auth user metadata:", JSON.stringify(meta));
+
+      const { data: created, error: createErr } = await supabaseHelpers.createUser({
+        id: authUser.id,
+        email: authUser.email,
+        name: fallbackProfile.name,
+        role: fallbackProfile.role,
+        phone: fallbackProfile.phone,
+        address: fallbackProfile.address,
+        is_active: true,
+      });
+
+      if (createErr) {
+        console.error("Failed to auto-create user profile:", createErr);
+        // Return fallback from auth metadata so login still works
+        return fallbackProfile;
+      }
+
+      return created || fallbackProfile;
+    } catch (err) {
+      console.error("ensureProfile error:", err);
+      // Always return something usable — never block login
+      return fallbackProfile;
+    }
   };
 
   useEffect(() => {
@@ -20,7 +64,7 @@ export function AuthProvider({ children }) {
       try {
         const { session } = await supabaseHelpers.getSession();
         if (session?.user) {
-          const profile = await loadProfile(session.user);
+          const profile = await ensureProfile(session.user);
           setUser(profile);
         } else {
           setUser(null);
@@ -39,7 +83,7 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth event:", event);
       if (event === "SIGNED_IN" && session?.user) {
-        const profile = await loadProfile(session.user);
+        const profile = await ensureProfile(session.user);
         setUser(profile);
       } else if (event === "SIGNED_OUT") {
         setUser(null);
@@ -67,13 +111,11 @@ export function AuthProvider({ children }) {
       throw new Error("Login failed. Please try again.");
     }
 
-    // Fetch user profile from public.users
-    const profile = await loadProfile(data.user);
-    if (!profile) {
-      throw new Error("User account not found. Please contact the administrator.");
-    }
+    // Fetch or auto-create user profile from public.users
+    // ensureProfile ALWAYS returns a profile (falls back to auth metadata)
+    const profile = await ensureProfile(data.user);
 
-    if (!profile.is_active) {
+    if (profile && !profile.is_active) {
       await supabaseHelpers.signOut();
       throw new Error("Your account has been deactivated. Please contact the administrator.");
     }
