@@ -42,7 +42,12 @@ export default function AIChatbot() {
       
       setMessages((prev) => [...prev, { role: "assistant", content: response }]);
     } catch (error) {
-      setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, I am having trouble connecting right now. Please try again later." }]);
+      console.error("Chatbot error:", error);
+      const isKeyMissing = error.message?.includes("Gemini API key is not configured");
+      const errMsg = isKeyMissing 
+        ? "The Gemini API key is missing. Please add VITE_GEMINI_API_KEY to your environment variables (in Vercel or your .env file)."
+        : "Sorry, I am having trouble connecting right now. Please try again later.";
+      setMessages((prev) => [...prev, { role: "assistant", content: errMsg }]);
     } finally {
       setIsTyping(false);
     }
