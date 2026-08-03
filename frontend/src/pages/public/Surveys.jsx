@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { SurveysAPI } from "@/lib/api";
+import { supabase } from "@/lib/supabase.js";
 
 export default function Surveys() {
   const [surveys, setSurveys] = useState([]);
@@ -14,8 +14,8 @@ export default function Surveys() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    SurveysAPI.list()
-      .then((res) => setSurveys(res.data.data ?? res.data ?? []))
+    supabase.from('surveys').select('*').eq('status', 'active').order('created_at', { ascending: false })
+      .then(({ data }) => setSurveys(Array.isArray(data) ? data : []))
       .catch(() => setSurveys(mockSurveys));
   }, []);
 

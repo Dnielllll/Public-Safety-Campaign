@@ -5,7 +5,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CampaignsAPI, AIAPI } from "@/lib/api";
+import { supabaseHelpers } from "@/lib/supabase.js";
+import { generateAIResponse } from "@/lib/ai.js";
 
 const categories = ["All", "Fire Safety", "Disaster Preparedness", "Health", "Anti-Drug", "Road Safety", "Environment", "Crime Prevention"];
 const priorities = ["All", "critical", "high", "medium", "low"];
@@ -21,8 +22,8 @@ export default function SafetyCampaigns() {
   const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
-    CampaignsAPI.list({ status: "published" })
-      .then((res) => setCampaigns(res.data.data ?? res.data ?? []))
+    supabaseHelpers.getCampaigns({ status: "published" })
+      .then(({ data }) => setCampaigns(Array.isArray(data) ? data : []))
       .catch(() => setCampaigns(mockCampaigns));
   }, []);
 

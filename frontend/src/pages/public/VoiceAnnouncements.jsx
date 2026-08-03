@@ -3,7 +3,7 @@ import { Volume2, Play, Square, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CampaignsAPI } from "@/lib/api";
+import { supabaseHelpers } from "@/lib/supabase.js";
 
 export default function VoiceAnnouncements() {
   const [campaigns, setCampaigns] = useState([]);
@@ -11,8 +11,8 @@ export default function VoiceAnnouncements() {
   const [expanded, setExpanded] = useState(null);
 
   useEffect(() => {
-    CampaignsAPI.list({ status: "published" })
-      .then((res) => setCampaigns(res.data.data ?? res.data ?? []))
+    supabaseHelpers.getCampaigns({ status: "published" })
+      .then(({ data }) => setCampaigns(Array.isArray(data) ? data : []))
       .catch(() => setCampaigns(mockCampaigns));
   }, []);
 

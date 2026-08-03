@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { FeedbackAPI } from "@/lib/api";
+import { supabaseHelpers } from "@/lib/supabase.js";
 
 const feedbackTypes = ["General Comment", "Suggestion", "Complaint", "Concern", "Compliment"];
 
@@ -20,7 +20,7 @@ export default function Feedback() {
     setError("");
     setLoading(true);
     try {
-      await FeedbackAPI.submit(form);
+      await supabaseHelpers.createFeedback({ comment: form.message, rating: form.rating || 3 });
       setSubmitted(true);
     } catch {
       // Show success anyway for demo

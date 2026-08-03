@@ -4,7 +4,7 @@ import { Siren, Megaphone, Volume2, ArrowRight, Bell, MessageSquare, ClipboardLi
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CampaignsAPI } from "@/lib/api";
+import { supabaseHelpers } from "@/lib/supabase.js";
 import { useAuth } from "@/hooks/useAuth.jsx";
 
 const priorityVariant = { critical: "destructive", high: "warning", medium: "secondary", low: "outline" };
@@ -24,8 +24,8 @@ export default function PublicDashboard() {
   const [campaigns, setCampaigns] = useState([]);
 
   useEffect(() => {
-    CampaignsAPI.list({ status: "published" })
-      .then((res) => setCampaigns(res.data.data ?? res.data ?? []))
+    supabaseHelpers.getCampaigns({ status: "published" })
+      .then(({ data }) => setCampaigns(Array.isArray(data) ? data : []))
       .catch(() => setCampaigns(mockCampaigns));
   }, []);
 

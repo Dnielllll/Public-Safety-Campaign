@@ -3,7 +3,7 @@ import { Bell, CheckCheck, Megaphone, Siren, BellOff } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { NotificationsAPI } from "@/lib/api";
+import { supabaseHelpers } from "@/lib/supabase.js";
 import { cn } from "@/lib/utils";
 
 export default function Notifications() {
@@ -11,8 +11,8 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    NotificationsAPI.list()
-      .then((res) => setNotifications(res.data.data ?? res.data ?? []))
+    supabaseHelpers.getNotifications()
+      .then(({ data }) => setNotifications(Array.isArray(data) ? data : []))
       .catch(() => setNotifications(mockNotifications))
       .finally(() => setLoading(false));
   }, []);

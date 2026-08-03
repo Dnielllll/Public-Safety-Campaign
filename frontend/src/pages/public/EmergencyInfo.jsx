@@ -3,7 +3,7 @@ import { Siren, Phone, MapPin, AlertTriangle, Heart, Flame, Droplets, ShieldAler
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { EmergencyAPI } from "@/lib/api";
+import { supabase } from "@/lib/supabase.js";
 
 const defaultHotlines = [
   { name: "Barangay 178 Emergency", number: "8-921-1234", icon: Siren, color: "text-destructive" },
