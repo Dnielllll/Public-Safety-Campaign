@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase.js";
+import { EmergencyAPI } from "@/lib/api.js";
 
 const defaultHotlines = [
   { name: "Barangay 178 Emergency", number: "8-921-1234", icon: Siren, color: "text-destructive" },
