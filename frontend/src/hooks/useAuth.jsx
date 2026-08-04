@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { supabase, supabaseHelpers } from "@/lib/supabase.js";
 
 const AuthContext = createContext(null);
@@ -6,6 +6,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const loginInProgress = useRef(false); // guard against race with onAuthStateChange
 
   // Helper: given a Supabase auth user, ensure public.users profile exists
   // This self-heals if the handle_new_user trigger didn't fire
@@ -83,6 +84,8 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth event:", event);
       if (event === "SIGNED_IN" && session?.user) {
+        // Skip — login() already handles profile fetch & setUser to avoid race condition
+        if (loginInProgress.current) return;
         const profile = await ensureProfile(session.user);
         setUser(profile);
       } else if (event === "SIGNED_OUT") {
@@ -97,31 +100,36 @@ export function AuthProvider({ children }) {
 
   // Login using Supabase Auth
   const login = async (credentials) => {
-    const { data, error } = await supabaseHelpers.signIn(credentials.email, credentials.password);
+    loginInProgress.current = true;
+    try {
+      const { data, error } = await supabaseHelpers.signIn(credentials.email, credentials.password);
 
-    if (error) {
-      // Friendly error messages
-      if (error.message?.toLowerCase().includes("invalid login credentials")) {
-        throw new Error("Invalid email or password. Please try again.");
+      if (error) {
+        // Friendly error messages
+        if (error.message?.toLowerCase().includes("invalid login credentials")) {
+          throw new Error("Invalid email or password. Please try again.");
+        }
+        throw new Error(error.message || "Login failed. Please try again.");
       }
-      throw new Error(error.message || "Login failed. Please try again.");
+
+      if (!data?.user) {
+        throw new Error("Login failed. Please try again.");
+      }
+
+      // Fetch or auto-create user profile from public.users
+      // ensureProfile ALWAYS returns a profile (falls back to auth metadata)
+      const profile = await ensureProfile(data.user);
+
+      if (profile && !profile.is_active) {
+        await supabaseHelpers.signOut();
+        throw new Error("Your account has been deactivated. Please contact the administrator.");
+      }
+
+      setUser(profile);
+      return profile;
+    } finally {
+      loginInProgress.current = false;
     }
-
-    if (!data?.user) {
-      throw new Error("Login failed. Please try again.");
-    }
-
-    // Fetch or auto-create user profile from public.users
-    // ensureProfile ALWAYS returns a profile (falls back to auth metadata)
-    const profile = await ensureProfile(data.user);
-
-    if (profile && !profile.is_active) {
-      await supabaseHelpers.signOut();
-      throw new Error("Your account has been deactivated. Please contact the administrator.");
-    }
-
-    setUser(profile);
-    return profile;
   };
 
   // Logout using Supabase Auth

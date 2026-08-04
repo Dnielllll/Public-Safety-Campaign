@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { MessageSquare, X, Send, Loader2, Bot, User } from "lucide-react";
+import { MessageSquare, X, Send, Bot, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { generateAIResponse } from "@/lib/ai.js";
@@ -84,9 +84,14 @@ export default function AIChatbot() {
               <p className="text-xs text-muted-foreground">Powered by Gemini AI</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setIsOpen(false)}>
+          <button
+            type="button"
+            onClick={() => setIsOpen(false)}
+            className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+            aria-label="Close chatbot"
+          >
             <X className="h-4 w-4" />
-          </Button>
+          </button>
         </div>
 
         {/* Messages */}
@@ -129,8 +134,14 @@ export default function AIChatbot() {
             className="flex-1 rounded-full"
             disabled={isTyping}
           />
-          <Button type="submit" size="icon" className="rounded-full shrink-0" disabled={!input.trim() || isTyping}>
-            {isTyping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          <Button
+            type="submit"
+            size="icon"
+            className="rounded-full shrink-0"
+            disabled={!input.trim() || isTyping}
+            loading={isTyping}
+          >
+            <Send className="h-4 w-4" />
           </Button>
         </form>
       </div>
