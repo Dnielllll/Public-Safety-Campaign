@@ -4,17 +4,14 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 const officials = [
-  { name: "Hon. Juan Dela Cruz", position: "Punong Barangay (Captain)", role: "captain" },
-  { name: "Hon. Maria Santos", position: "Barangay Kagawad", role: "kagawad" },
-  { name: "Hon. Pedro Reyes", position: "Barangay Kagawad", role: "kagawad" },
-  { name: "Hon. Elena Garcia", position: "Barangay Kagawad", role: "kagawad" },
-  { name: "Hon. Roberto Mendoza", position: "Barangay Kagawad", role: "kagawad" },
-  { name: "Hon. Carmen Villanueva", position: "Barangay Kagawad", role: "kagawad" },
-  { name: "Hon. Ricardo Torres", position: "Barangay Kagawad", role: "kagawad" },
-  { name: "Hon. Antonio Bautista", position: "Barangay Kagawad", role: "kagawad" },
-  { name: "Hon. Sofia Ramos", position: "SK Chairperson", role: "sk" },
-  { name: "Jose Fernando", position: "Barangay Secretary", role: "appointed" },
-  { name: "Teresa Cruz", position: "Barangay Treasurer", role: "appointed" },
+  { name: "Hon. Editha Besmonte Labasbas", position: "Punong Barangay (Captain)", role: "captain" },
+  { name: "Hon. Eric Mauyao", position: "Committee on Budget Finance", role: "kagawad" },
+  { name: "Hon. Karl Campos", position: "Committee on Education", role: "kagawad" },
+  { name: "Hon. Art Asistio", position: "Committee on Housing & Anti Squatting", role: "kagawad" },
+  { name: "Hon. Diolito Cevantes", position: "Committee on Infrastructure", role: "kagawad" },
+  { name: "Hon. Eddie Arligue", position: "Committee on Livelihood", role: "kagawad" },
+  { name: "Hon. Francia Marzol", position: "Committee on Health", role: "kagawad" },
+  { name: "Hon. Gil Oro", position: "Committee on Peace and Order", role: "kagawad" },
 ];
 
 export default function AboutBarangay() {

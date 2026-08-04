@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Siren, Phone, MapPin, AlertTriangle, Heart, Flame, Droplets, ShieldAlert, Ambulance } from "lucide-react";
+import { Siren, Phone, MapPin, AlertTriangle, Heart, Flame, Droplets, ShieldAlert, Ambulance, Building2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,14 +7,17 @@ import { supabase } from "@/lib/supabase.js";
 import { EmergencyAPI } from "@/lib/api.js";
 
 const defaultHotlines = [
-  { name: "Barangay 178 Emergency", number: "8-921-1234", icon: Siren, color: "text-destructive" },
-  { name: "North Caloocan City Hall", number: "8-921-9999", icon: Phone, color: "text-primary" },
-  { name: "Philippine National Police (PNP)", number: "911", icon: ShieldAlert, color: "text-accent" },
-  { name: "Bureau of Fire Protection (BFP)", number: "8-426-0219", icon: Flame, color: "text-orange-600" },
+  { name: "Barangay 178 Hall", number: "0921-463-6835", icon: Phone, color: "text-primary" },
+  { name: "Barangay 178 Hotline", number: "0928-497-1332", icon: Siren, color: "text-destructive" },
+  { name: "North Caloocan City Hall", number: "(02) 8288-8811", icon: Building2, color: "text-primary" },
+  { name: "North Caloocan Police Station (PNP)", number: "(02) 8961-5724", icon: ShieldAlert, color: "text-accent" },
+  { name: "Bureau of Fire Protection", number: "(02) 2255-772", icon: Flame, color: "text-orange-600" },
   { name: "Philippine Red Cross", number: "143", icon: Heart, color: "text-red-600" },
-  { name: "NDRRMC Hotline", number: "911", icon: AlertTriangle, color: "text-yellow-600" },
-  { name: "DOH Emergency Hotline", number: "1555", icon: Ambulance, color: "text-green-600" },
-  { name: "Flood Control Office", number: "8-921-5432", icon: Droplets, color: "text-blue-600" },
+  { name: "Department of Health (DOH)", number: "(02) 8651-7800", icon: Ambulance, color: "text-green-600" },
+  { name: "NDRRMC Operations Center", number: "(02) 8911-5061", icon: AlertTriangle, color: "text-yellow-600" },
+  { name: "Caloocan CDRRMO", number: "0905-547-7817", icon: ShieldAlert, color: "text-yellow-600" },
+  { name: "Caloocan 24/7 Emergency", number: "888-25664", icon: Phone, color: "text-primary" },
+  { name: "National Emergency", number: "911", icon: Siren, color: "text-destructive" },
 ];
 
 const evacuationCenters = [
