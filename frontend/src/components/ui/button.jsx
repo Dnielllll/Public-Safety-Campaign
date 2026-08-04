@@ -35,14 +35,22 @@ const buttonVariants = cva(
 );
 
 const Button = React.forwardRef(
-  ({ className, variant, size, asChild = false, onClick, disabled, loading, children, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, onClick, disabled, loading, type, children, ...props }, ref) => {
     const [internalLoading, setInternalLoading] = useState(false);
     const Comp = asChild ? Slot : "button";
-    const isLoading = loading || internalLoading;
+    // For submit buttons, rely on external loading prop only (form handles submission)
+    const isSubmitButton = type === "submit";
+    const isLoading = loading || (!isSubmitButton && internalLoading);
     const finalDisabled = disabled || isLoading;
 
     const handleClick = async (e) => {
-      if (isLoading) return;
+      // For submit buttons, don't intercept — let the form's onSubmit handle it
+      if (isSubmitButton) {
+        if (onClick) onClick(e);
+        return;
+      }
+
+      if (internalLoading) return;
       setInternalLoading(true);
 
       try {
@@ -50,7 +58,7 @@ const Button = React.forwardRef(
           const result = onClick(e);
           if (result && typeof result.then === "function") {
             await result;
-            return; // stay loading until promise resolves
+            return;
           }
         }
         // For sync clicks (nav, toggles, etc.) show spinner briefly
@@ -66,6 +74,7 @@ const Button = React.forwardRef(
           className={cn(buttonVariants({ variant, size, className }))}
           ref={ref}
           disabled={finalDisabled}
+          type={type}
           onClick={onClick}
           {...props}
         >
@@ -79,6 +88,7 @@ const Button = React.forwardRef(
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         disabled={finalDisabled}
+        type={type}
         onClick={handleClick}
         {...props}
       >

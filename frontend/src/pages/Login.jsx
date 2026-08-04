@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth.jsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -146,12 +145,8 @@ export default function Login() {
                 )}
               </CardContent>
               <CardFooter className="flex flex-col gap-3">
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Signing in…</>
-                  ) : (
-                    "Sign in"
-                  )}
+                <Button type="submit" className="w-full" disabled={loading} loading={loading}>
+                  {loading ? "Signing in…" : "Sign in"}
                 </Button>
 
                 <p className="text-xs text-muted-foreground text-center w-full">
