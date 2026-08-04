@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95",
   {
     variants: {
       variant: {
@@ -42,15 +42,21 @@ const Button = React.forwardRef(
     const finalDisabled = disabled || isLoading;
 
     const handleClick = async (e) => {
-      if (!onClick) return;
-      const result = onClick(e);
-      if (result && typeof result.then === 'function') {
-        setInternalLoading(true);
-        try {
-          await result;
-        } finally {
-          setInternalLoading(false);
+      if (isLoading) return;
+      setInternalLoading(true);
+
+      try {
+        if (onClick) {
+          const result = onClick(e);
+          if (result && typeof result.then === "function") {
+            await result;
+            return; // stay loading until promise resolves
+          }
         }
+        // For sync clicks (nav, toggles, etc.) show spinner briefly
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      } finally {
+        setInternalLoading(false);
       }
     };
 
@@ -76,8 +82,14 @@ const Button = React.forwardRef(
         onClick={handleClick}
         {...props}
       >
-        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {children}
+        {isLoading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {size !== "icon" && <span className="opacity-70">{children}</span>}
+          </>
+        ) : (
+          children
+        )}
       </Comp>
     );
   }
@@ -85,3 +97,4 @@ const Button = React.forwardRef(
 Button.displayName = "Button";
 
 export { Button, buttonVariants };
+
