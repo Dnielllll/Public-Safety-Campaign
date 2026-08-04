@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva } from "class-variance-authority";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
@@ -34,14 +35,50 @@ const buttonVariants = cva(
 );
 
 const Button = React.forwardRef(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, onClick, disabled, loading, children, ...props }, ref) => {
+    const [internalLoading, setInternalLoading] = useState(false);
     const Comp = asChild ? Slot : "button";
+    const isLoading = loading || internalLoading;
+    const finalDisabled = disabled || isLoading;
+
+    const handleClick = async (e) => {
+      if (!onClick) return;
+      const result = onClick(e);
+      if (result && typeof result.then === 'function') {
+        setInternalLoading(true);
+        try {
+          await result;
+        } finally {
+          setInternalLoading(false);
+        }
+      }
+    };
+
+    if (asChild) {
+      return (
+        <Comp
+          className={cn(buttonVariants({ variant, size, className }))}
+          ref={ref}
+          disabled={finalDisabled}
+          onClick={onClick}
+          {...props}
+        >
+          {children}
+        </Comp>
+      );
+    }
+
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
+        disabled={finalDisabled}
+        onClick={handleClick}
         {...props}
-      />
+      >
+        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        {children}
+      </Comp>
     );
   }
 );
