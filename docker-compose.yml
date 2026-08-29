@@ -239,6 +239,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       IPROG_API_TOKEN: ${IPROG_API_TOKEN}
       SEMAPHORE_API_KEY: ${SEMAPHORE_API_KEY}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       CORS_ORIGIN: "*"
