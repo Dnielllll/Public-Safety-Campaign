@@ -6,47 +6,143 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import LoginOverlay from "@/components/LoginOverlay.jsx";
+import { Eye, EyeOff, Mail, Lock, Key } from "lucide-react";
+import { notificationApi } from "@/lib/apiGateway.js";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({ email: "", password: "", otp: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [pendingDest, setPendingDest] = useState("/");
   const [loggedInUser, setLoggedInUser] = useState(null);
+  const [showOTP, setShowOTP] = useState(false);
+  const [otpExpiry, setOtpExpiry] = useState(null);
+  const [otpTimer, setOtpTimer] = useState(120);
+  const [isAdminLogin, setIsAdminLogin] = useState(false);
 
   React.useEffect(() => {
-    if (localStorage.getItem("logged_out") === "true") {
+    const logoutMsg = localStorage.getItem("logout_message");
+    if (logoutMsg) {
+      setError(logoutMsg);
+      localStorage.removeItem("logout_message");
+    } else if (localStorage.getItem("logged_out") === "true") {
       setSuccessMsg("Logged out successfully.");
       localStorage.removeItem("logged_out");
     }
   }, []);
 
-  const handleSubmit = async (e) => {
+  // OTP Timer countdown
+  React.useEffect(() => {
+    let interval;
+    if (showOTP && otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer((prev) => prev - 1);
+      }, 1000);
+    } else if (otpTimer === 0) {
+      setShowOTP(false);
+      setError("OTP expired. Please try again.");
+      setForm({ ...form, otp: "" });
+    }
+    return () => clearInterval(interval);
+  }, [showOTP, otpTimer]);
+
+  const generateOTP = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
+  const handleEmailSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setSuccessMsg("");
     setLoading(true);
+
     try {
-      const user = await login(form);
-      
+      // Generate OTP
+      const otp = generateOTP();
+      const expiry = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes expiry
+      setOtpExpiry(expiry);
+      setOtpTimer(120);
+
+      // Store OTP locally to validate later
+      localStorage.setItem(`otp_${form.email}`, JSON.stringify({ otp, expiry: expiry.toISOString() }));
+
+      // Send OTP via real email using notification-service
+      await notificationApi.sendOTP({ email: form.email, otp });
+
+      setShowOTP(true);
+      setSuccessMsg("OTP sent to your email. Valid for 2 minutes.");
+    } catch (err) {
+      // Clear the stored OTP if email sending failed
+      localStorage.removeItem(`otp_${form.email}`);
+      setError("Failed to send OTP. Please check your email address or try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOTPSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const storedOTPData = JSON.parse(localStorage.getItem(`otp_${form.email}`));
+      if (!storedOTPData) {
+        setError("Invalid or expired OTP. Please request a new one.");
+        setLoading(false);
+        return;
+      }
+
+      const now = new Date();
+      const expiry = new Date(storedOTPData.expiry);
+
+      if (now > expiry) {
+        setError("OTP expired. Please request a new one.");
+        localStorage.removeItem(`otp_${form.email}`);
+        setLoading(false);
+        return;
+      }
+
+      if (form.otp !== storedOTPData.otp) {
+        setError("Invalid OTP. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      // OTP is valid, proceed with password login
+      await handlePasswordLogin();
+    } catch (err) {
+      setError("Invalid OTP. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordLogin = async () => {
+    try {
+      const user = await login({ email: form.email, password: form.password });
+
       // Validate user role before navigation
       if (!user || !user.role) {
         setError("Invalid user account. Please contact administrator.");
         return;
       }
 
-      // Determine destination based on role - always go to role dashboard
-      // Never use saved location to ensure users always land on their correct dashboard
+      // Clear OTP after successful login
+      localStorage.removeItem(`otp_${form.email}`);
+
+      // Determine destination based on role
       let dest = "/";
-      if (user.role === "admin") {
+      if (user.role === "super_admin") {
+        dest = "/super-admin";
+      } else if (user.role === "admin") {
         dest = "/admin";
       } else if (user.role === "staff") {
         dest = "/staff";
-      } else if (user.role === "public") {
+      } else if (user.role === "public" || user.role === "citizen") {
         dest = "/";
       } else {
         setError("Invalid user role. Please contact administrator.");
@@ -63,6 +159,66 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  const handleDirectLogin = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const user = await login({ email: form.email, password: form.password });
+
+      // Validate user role before navigation
+      if (!user || !user.role) {
+        setError("Invalid user account. Please contact administrator.");
+        setLoading(false);
+        return;
+      }
+
+      // Check if user is admin or super admin - allow direct login
+      if (user.role === "super_admin") {
+        let dest = "/super-admin";
+        setLoggedInUser(user);
+        setPendingDest(dest);
+        setLoggingIn(true);
+      } else if (user.role === "admin") {
+        let dest = "/admin";
+        setLoggedInUser(user);
+        setPendingDest(dest);
+        setLoggingIn(true);
+      } else {
+        // For staff and citizens, generate and require OTP
+        const otp = generateOTP();
+        const expiry = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes expiry
+        setOtpExpiry(expiry);
+        setOtpTimer(120);
+
+        // Store OTP in localStorage
+        localStorage.setItem(`otp_${form.email}`, JSON.stringify({ otp, expiry: expiry.toISOString() }));
+
+        // Send OTP via email using the notification service
+        try {
+            await notificationApi.sendOTP({ email: form.email, otp: otp });
+            console.log("OTP email sent request successful");
+        } catch (err) {
+            console.error("Failed to send OTP email:", err);
+            setError("Failed to send OTP to your email. Please try again.");
+            setLoading(false);
+            return;
+        }
+
+
+
+        setLoading(false);
+        setShowOTP(true);
+        setSuccessMsg("OTP sent to your email. Valid for 2 minutes.");
+      }
+    } catch (err) {
+      setError(err.message || "Invalid email or password. Please try again.");
+      setLoading(false);
+    }
+  };
+
 
   const doNavigate = () => {
     navigate(pendingDest, { replace: true });
@@ -111,32 +267,114 @@ export default function Login() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Log in</CardTitle>
+              <CardTitle>{showOTP ? "Enter OTP" : "Log in"}</CardTitle>
+              <CardDescription>
+                {showOTP ? `Enter the 6-digit code sent to your email. Expires in ${Math.floor(otpTimer / 60)}:${(otpTimer % 60).toString().padStart(2, '0')}` : ""}
+              </CardDescription>
             </CardHeader>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={showOTP ? handleOTPSubmit : handleDirectLogin}>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    required
-                    placeholder="you@example.com"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    required
-                    placeholder="••••••••"
-                    value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  />
-                </div>
+                {!showOTP && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="email"
+                          type="email"
+                          required
+                          placeholder="you@example.com"
+                          value={form.email}
+                          onChange={(e) => setForm({ ...form, email: e.target.value })}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="password"
+                          type={showPassword ? "text" : "password"}
+                          required
+                          placeholder="••••••••"
+                          value={form.password}
+                          onChange={(e) => setForm({ ...form, password: e.target.value })}
+                          className="pl-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {showOTP && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="otp">One-Time Password</Label>
+                      <div className="relative">
+                        <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="otp"
+                          type="text"
+                          required
+                          placeholder="123456"
+                          maxLength={6}
+                          value={form.otp}
+                          onChange={(e) => setForm({ ...form, otp: e.target.value.replace(/\D/g, '') })}
+                          className="pl-10 text-center text-2xl tracking-widest"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="password"
+                          type={showPassword ? "text" : "password"}
+                          required
+                          placeholder="••••••••"
+                          value={form.password}
+                          onChange={(e) => setForm({ ...form, password: e.target.value })}
+                          className="pl-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowOTP(false);
+                        setForm({ ...form, otp: "" });
+                        setError("");
+                      }}
+                      className="w-full"
+                    >
+                      Back to email
+                    </Button>
+                  </>
+                )}
+
                 {error && <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">{error}</p>}
                 {successMsg && (
                   <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
@@ -145,16 +383,18 @@ export default function Login() {
                 )}
               </CardContent>
               <CardFooter className="flex flex-col gap-3">
-                <Button type="submit" className="w-full" disabled={loading} loading={loading}>
-                  {loading ? "Signing in…" : "Sign in"}
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Processing…" : showOTP ? "Verify & Sign in" : "Sign in"}
                 </Button>
 
-                <p className="text-xs text-muted-foreground text-center w-full">
-                  New resident?{" "}
-                  <Link to="/register" className="text-primary font-medium hover:underline">
-                    Create a resident account
-                  </Link>
-                </p>
+                {!showOTP && (
+                  <p className="text-xs text-muted-foreground text-center w-full">
+                    New resident?{" "}
+                    <Link to="/register" className="text-primary font-medium hover:underline">
+                      Create a resident account
+                    </Link>
+                  </p>
+                )}
               </CardFooter>
             </form>
           </Card>

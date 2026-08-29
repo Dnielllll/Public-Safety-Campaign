@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+*.local
+
+# Environment files - never commit real secrets
+.env
+**/.env
+!**/.env.example
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# PHP
+vendor/
+*.cache
+storage/logs/*
+bootstrap/cache/*
+
+# Test files
+test.js
+test-ai.mjs

@@ -8,8 +8,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const loginInProgress = useRef(false); // guard against race with onAuthStateChange
 
-  // Helper: given a Supabase auth user, ensure public.users profile exists
-  // This self-heals if the handle_new_user trigger didn't fire
   const ensureProfile = async (authUser) => {
     if (!authUser) return null;
 
@@ -26,10 +24,17 @@ export function AuthProvider({ children }) {
       _fromMetadata: true, // flag to know this came from fallback
     };
 
+    // Normalise role: treat 'superadmin' (DB value) as 'super_admin' (frontend value)
+    const normaliseRole = (profile) => {
+      if (!profile) return profile;
+      if (profile.role === "superadmin") return { ...profile, role: "super_admin" };
+      return profile;
+    };
+
     try {
       // Try to fetch existing profile
       const { data: profile, error } = await supabaseHelpers.getUserById(authUser.id);
-      if (profile) return profile;
+      if (profile) return normaliseRole(profile);
 
       // Profile missing — auto-create from auth user metadata
       console.warn("public.users profile missing for", authUser.id, "— auto-creating from auth metadata");
@@ -48,14 +53,14 @@ export function AuthProvider({ children }) {
       if (createErr) {
         console.error("Failed to auto-create user profile:", createErr);
         // Return fallback from auth metadata so login still works
-        return fallbackProfile;
+        return normaliseRole(fallbackProfile);
       }
 
-      return created || fallbackProfile;
+      return normaliseRole(created || fallbackProfile);
     } catch (err) {
       console.error("ensureProfile error:", err);
       // Always return something usable — never block login
-      return fallbackProfile;
+      return normaliseRole(fallbackProfile);
     }
   };
 
@@ -98,6 +103,44 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Session timeout logic
+  const timeoutRef = useRef(null);
+
+  useEffect(() => {
+    const resetTimeout = () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (!user) return;
+
+      const timeoutMs = (user.role === "super_admin" || user.role === "admin" || user.role === "staff") 
+        ? 15 * 60 * 1000 // 15 minutes for super_admin/admin/staff
+        : 30 * 60 * 1000; // 30 minutes for citizen
+
+      timeoutRef.current = setTimeout(() => {
+        // Inactivity timeout reached
+        localStorage.setItem("logout_message", "Your session has expired due to inactivity. Please log in again.");
+        logout();
+      }, timeoutMs);
+    };
+
+    const handleActivity = () => {
+      resetTimeout();
+    };
+
+    const events = ["mousemove", "keydown", "scroll", "click"];
+
+    if (user) {
+      events.forEach((event) => window.addEventListener(event, handleActivity));
+      resetTimeout();
+    } else {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    }
+
+    return () => {
+      events.forEach((event) => window.removeEventListener(event, handleActivity));
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [user]);
+
   // Login using Supabase Auth
   const login = async (credentials) => {
     loginInProgress.current = true;
@@ -135,9 +178,12 @@ export function AuthProvider({ children }) {
   // Logout using Supabase Auth
   const logout = async () => {
     await supabaseHelpers.signOut();
-    localStorage.setItem("logged_out", "true");
+    if (!localStorage.getItem("logout_message")) {
+      localStorage.setItem("logged_out", "true");
+    }
     setUser(null);
   };
+
 
   return (
     <AuthContext.Provider value={{ user, setUser, loading, login, logout }}>

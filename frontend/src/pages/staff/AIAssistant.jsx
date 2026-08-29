@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { AIAPI } from "@/lib/api";
+import { supabaseHelpers } from "@/lib/supabase.js";
 
 export default function StaffAIAssistant() {
   const [prompt, setPrompt] = useState("");
@@ -62,11 +63,24 @@ export default function StaffAIAssistant() {
     }
   };
 
-  const handleSubmitForApproval = () => {
-    // Simulate submitting for approval - in real app this would send to backend
-    alert("Draft submitted for approval! The admin will review your announcement.");
-    setDraft("");
-    setPrompt("");
+  const handleSubmitForApproval = async () => {
+    try {
+      const { user } = await supabaseHelpers.getAuthUser();
+      const { data, error } = await supabaseHelpers.createCampaign({
+        title: "AI Generated Announcement",
+        description: draft,
+        campaign_type: "community",
+        status: "submitted",
+        created_by: user?.id
+      });
+      if (error) throw error;
+      alert("Draft submitted for approval! The admin will review your announcement.");
+      setDraft("");
+      setPrompt("");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to submit draft.");
+    }
   };
 
   return (

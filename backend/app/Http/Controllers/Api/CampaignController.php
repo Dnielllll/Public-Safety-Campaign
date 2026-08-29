@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Campaign;
+use App\Services\IProgService;
 
 class CampaignController extends Controller
 {
@@ -87,5 +88,67 @@ class CampaignController extends Controller
         $campaign = Campaign::findOrFail($id);
         $campaign->delete();
         return response()->json(['message' => 'Campaign deleted successfully']);
+    }
+
+    /**
+     * Distribute campaign via SMS
+     */
+    public function distributeSMS(Request $request)
+    {
+        $request->validate([
+            'phone_numbers' => 'required|array',
+            'phone_numbers.*' => 'string',
+            'campaign_title' => 'required|string',
+            'campaign_description' => 'nullable|string',
+        ]);
+
+        $iProg = new IProgService();
+
+        // Create SMS message from provided campaign data
+        $message = "Barangay 178 Alert: {$request->campaign_title}\n\n";
+        if ($request->campaign_description) {
+            $message .= $request->campaign_description;
+        }
+        $message .= "\n\nVisit barangay178.gov.ph for more details.";
+
+        $result = $iProg->sendBulkSMS($request->phone_numbers, $message);
+
+        return response()->json([
+            'message' => $result['success'] ? 'SMS distribution completed' : 'SMS distribution partially failed',
+            'campaign_title' => $request->campaign_title,
+            'distribution_result' => $result,
+        ], $result['success'] ? 200 : 207);
+    }
+
+    /**
+     * Get approved campaigns for distribution
+     */
+    public function getApprovedCampaigns()
+    {
+        $campaigns = Campaign::where('status', 'approved')
+            ->orWhere('status', 'published')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json($campaigns);
+    }
+
+    /**
+     * Get all resident phone numbers for SMS distribution
+     */
+    public function getResidentPhoneNumbers()
+    {
+        // Fetch phone numbers from users table (residents are users with phone numbers)
+        // Using Supabase directly since Laravel models might not be synced
+        $phoneNumbers = \DB::table('users')
+            ->whereNotNull('phone')
+            ->where('phone', '!=', '')
+            ->pluck('phone')
+            ->toArray();
+
+        return response()->json([
+            'phone_numbers' => $phoneNumbers,
+            'total' => count($phoneNumbers),
+        ]);
     }
 }

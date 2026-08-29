@@ -10,8 +10,8 @@ import { useAuth } from "@/hooks/useAuth.jsx";
 const priorityVariant = { critical: "destructive", high: "warning", medium: "secondary", low: "outline" };
 
 const quickLinks = [
-  { to: "/campaigns", label: "Safety Campaigns", icon: Megaphone, color: "bg-primary/10 text-primary" },
-  { to: "/voice-announcements", label: "AI Voice Announcements", icon: Volume2, color: "bg-accent/10 text-accent" },
+  { to: "/campaigns", label: "Safety Campaigns", icon: Megaphone, color: "bg-orange-200 text-orange-600" },
+  { to: "/voice-announcements", label: "AI Voice Announcements", icon: Volume2, color: "bg-orange-200 text-orange-600" },
   { to: "/emergency", label: "Emergency Info", icon: ShieldAlert, color: "bg-destructive/10 text-destructive" },
   { to: "/notifications", label: "Notifications", icon: Bell, color: "bg-secondary text-secondary-foreground" },
   { to: "/feedback", label: "Submit Feedback", icon: MessageSquare, color: "bg-muted text-muted-foreground" },
@@ -57,7 +57,7 @@ export default function PublicDashboard() {
               <Link to="/emergency"><Siren className="h-4 w-4 mr-1" /> Emergency Info</Link>
             </Button>
             <Button variant="outline" asChild className="bg-white/10 border-white/30 text-white hover:bg-white/20 backdrop-blur-sm">
-              <Link to="/voice-announcements"><Volume2 className="h-4 w-4 mr-1" /> Listen via AI Voice</Link>
+              <Link to="/voice-announcements"><Volume2 className="h-4 w-4 mr-1" /> Voice Announcement</Link>
             </Button>
           </div>
         </div>
@@ -66,21 +66,22 @@ export default function PublicDashboard() {
       <div className="container py-8 space-y-8">
         {/* Quick access links */}
         <section>
-          <h2 className="font-display text-lg font-semibold mb-4">Quick Access</h2>
+          <h2 className="font-display text-lg font-semibold mb-4 text-orange-600">Quick Access</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {quickLinks.map((ql) => {
               if (!user && (ql.to === "/feedback" || ql.to === "/surveys")) return null;
               const Icon = ql.icon;
+              const isEmergency = ql.to === "/emergency";
               return (
                 <Link
                   key={ql.to}
                   to={ql.to}
-                  className="flex flex-col items-center gap-2 rounded-xl border border-border p-4 hover:shadow-md hover:-translate-y-0.5 transition-all text-center group"
+                  className="flex flex-col items-center gap-2 rounded-xl border border-border bg-orange-50 p-4 hover:shadow-md hover:-translate-y-0.5 hover:bg-orange-100 transition-all text-center group"
                 >
-                  <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${ql.color} group-hover:scale-110 transition-transform`}>
-                    <Icon className="h-5 w-5" />
+                  <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${ql.color} ${isEmergency ? 'animate-pulse' : ''} group-hover:scale-110 transition-transform`}>
+                    <Icon className={`h-5 w-5 ${isEmergency ? 'animate-bounce' : ''}`} />
                   </div>
-                  <span className="text-xs font-medium leading-tight">{ql.label}</span>
+                  <span className="text-xs font-medium leading-tight text-orange-900">{ql.label}</span>
                 </Link>
               );
             })}

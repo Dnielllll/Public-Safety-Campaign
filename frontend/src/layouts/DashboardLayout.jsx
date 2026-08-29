@@ -28,6 +28,53 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import LogoutOverlay from "@/components/LogoutOverlay.jsx";
 
+const superAdminNavGroups = [
+  {
+    title: "Main",
+    items: [
+      { to: "/super-admin", label: "Super Admin Dashboard", icon: LayoutDashboard, end: true },
+    ],
+  },
+  {
+    title: "System Control",
+    items: [
+      { to: "/super-admin/settings", label: "System Settings", icon: Settings },
+      { to: "/super-admin/users", label: "Admin Management", icon: Users },
+    ],
+  },
+  {
+    title: "Campaigns",
+    items: [
+      { to: "/super-admin/campaigns", label: "Campaign Management", icon: Megaphone },
+      { to: "/super-admin/ai-assistant", label: "AI Assistant", icon: Sparkles },
+      { to: "/super-admin/content", label: "Content", icon: FileText },
+      { to: "/super-admin/approvals", label: "Approvals", icon: CheckSquare },
+      { to: "/super-admin/distribution", label: "Distribution", icon: Share2 },
+    ],
+  },
+  {
+    title: "Communication",
+    items: [
+      { to: "/super-admin/notifications", label: "Notifications", icon: BellRing },
+      { to: "/super-admin/feedback", label: "Feedback", icon: MessageSquareText },
+    ],
+  },
+  {
+    title: "Analytics",
+    items: [
+      { to: "/super-admin/reports", label: "Reports", icon: BarChart3 },
+      { to: "/super-admin/process-monitoring", label: "Monitoring", icon: Activity },
+      { to: "/super-admin/audit-trail", label: "Audit Trail", icon: History },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
+      { to: "/super-admin/profile", label: "Profile", icon: UserCircle },
+    ],
+  },
+];
+
 const adminNavGroups = [
   {
     title: "Main",
@@ -169,13 +216,15 @@ export default function DashboardLayout({ role }) {
   const [collapsed, setCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState(
-    role === "admin" 
+    role === "super_admin"
+      ? { Main: true, "System Control": true, Campaigns: true, Communication: true, Analytics: true, Account: true }
+      : role === "admin"
       ? { Main: true, Campaigns: true, Communication: true, Analytics: true, System: true }
       : { Main: true, Campaigns: true, Communication: true, Reports: true, Account: true }
   );
-  const navGroups = role === "admin" ? adminNavGroups : staffNavGroups;
-  const roleLabel = role === "admin" ? "Administrator" : "Staff";
-  const roleColor = role === "admin" ? "bg-primary" : "bg-accent";
+  const navGroups = role === "super_admin" ? superAdminNavGroups : role === "admin" ? adminNavGroups : staffNavGroups;
+  const roleLabel = role === "super_admin" ? "Super Administrator" : role === "admin" ? "Administrator" : "Staff";
+  const roleColor = role === "super_admin" ? "bg-purple-600" : role === "admin" ? "bg-primary" : "bg-accent";
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -295,11 +344,11 @@ export default function DashboardLayout({ role }) {
             </Badge>
             <Avatar className="h-8 w-8">
               <AvatarFallback className={cn("text-white text-xs font-bold", roleColor)}>
-                {user?.name?.[0] ?? (role === "admin" ? "A" : "S")}
+                {user?.name?.[0] ?? (role === "super_admin" ? "SA" : role === "admin" ? "A" : "S")}
               </AvatarFallback>
             </Avatar>
             <div className="hidden sm:block leading-tight">
-              <p className="text-sm font-medium">{user?.name ?? (role === "admin" ? "Admin User" : "Staff User")}</p>
+              <p className="text-sm font-medium">{user?.name ?? (role === "super_admin" ? "Super Admin" : role === "admin" ? "Admin User" : "Staff User")}</p>
               <p className="text-xs text-muted-foreground">{user?.email ?? "—"}</p>
             </div>
           </div>

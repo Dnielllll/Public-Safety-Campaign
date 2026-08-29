@@ -11,14 +11,42 @@ const actionIcon = {
   "settings.": Settings,
 };
 
-const logs = [
-  { id: 1, actor: "Maria Santos", action: "campaign.published", entity: "Fire Safety Reminders for the Dry Season", time: "2026-07-13 09:42" },
-  { id: 2, actor: "Maria Santos", action: "campaign.approved", entity: "Fire Safety Reminders for the Dry Season", time: "2026-07-13 09:38" },
-  { id: 3, actor: "Juan Dela Cruz", action: "campaign.submitted", entity: "Fire Safety Reminders for the Dry Season", time: "2026-07-12 16:10" },
-  { id: 4, actor: "Maria Santos", action: "user.deactivated", entity: "Pedro Ramos", time: "2026-07-12 11:02" },
-  { id: 5, actor: "Maria Santos", action: "settings.updated", entity: "Google Cloud TTS Voice Config", time: "2026-07-10 14:22" },
-  { id: 6, actor: "Ana Reyes", action: "user.login", entity: "Public Portal", time: "2026-07-10 08:15" },
-];
+const generateLogs = () => {
+  const now = new Date();
+  
+  const formatDate = (date) => {
+    const pad = (n) => n.toString().padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const getPastDate = (daysAgo, hours, minutes) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - daysAgo);
+    if (hours !== undefined && minutes !== undefined) {
+      d.setHours(hours, minutes, 0, 0);
+    }
+    return formatDate(d);
+  };
+
+  // Recent logs a few minutes ago
+  const min5 = new Date(now.getTime() - 5 * 60000);
+  const min9 = new Date(now.getTime() - 9 * 60000);
+
+  return [
+    { id: 1, actor: "Maria Santos", action: "campaign.published", entity: "Fire Safety Reminders for the Dry Season", time: formatDate(min5) },
+    { id: 2, actor: "Maria Santos", action: "campaign.approved", entity: "Fire Safety Reminders for the Dry Season", time: formatDate(min9) },
+    { id: 3, actor: "Juan Dela Cruz", action: "campaign.submitted", entity: "Fire Safety Reminders for the Dry Season", time: getPastDate(1, 16, 10) },
+    { id: 4, actor: "Maria Santos", action: "user.deactivated", entity: "Pedro Ramos", time: getPastDate(1, 11, 2) },
+    { id: 5, actor: "Maria Santos", action: "settings.updated", entity: "Google Cloud TTS Voice Config", time: getPastDate(3, 14, 22) },
+    { id: 6, actor: "Ana Reyes", action: "user.login", entity: "Public Portal", time: getPastDate(3, 8, 15) },
+    { id: 7, actor: "Admin User", action: "page.created", entity: "Staff Reports Page", time: getPastDate(7, 9, 30) },
+    { id: 8, actor: "Admin User", action: "page.created", entity: "Staff Content Page", time: getPastDate(7, 10, 15) },
+    { id: 9, actor: "Admin User", action: "page.created", entity: "Staff Submissions Page", time: getPastDate(7, 11, 0) },
+    { id: 10, actor: "Admin User", action: "page.created", entity: "Staff Campaigns Page", time: getPastDate(7, 11, 30) },
+  ];
+};
+
+const logs = generateLogs();
 
 function iconFor(action) {
   const key = Object.keys(actionIcon).find((k) => action.startsWith(k));

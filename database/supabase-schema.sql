@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   type TEXT DEFAULT 'info' CHECK (type IN ('info', 'warning', 'emergency', 'campaign')),
   status TEXT DEFAULT 'unread' CHECK (status IN ('unread', 'read', 'archived')),
   channels TEXT[] DEFAULT ARRAY['push'], -- push, email, sms
+  recipient_count INTEGER DEFAULT 0,
   sent_at TIMESTAMP WITH TIME ZONE,
   read_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL

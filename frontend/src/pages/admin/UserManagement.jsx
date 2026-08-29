@@ -174,9 +174,7 @@ export default function UserManagement() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="staff-password">
-                    Password <span className="text-muted-foreground font-normal">(assigned by admin)</span>
-                  </Label>
+                  <Label htmlFor="staff-password">Password</Label>
                   <div className="relative">
                     <Input
                       id="staff-password"

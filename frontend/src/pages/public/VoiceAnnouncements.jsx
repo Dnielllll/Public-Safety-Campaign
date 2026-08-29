@@ -26,8 +26,16 @@ export default function VoiceAnnouncements() {
     window.speechSynthesis.cancel();
     setPlaying(id);
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    // Clean the text by removing emojis and special characters for better speech
+    const cleanText = (text || "")
+      .replace(/[\u{1F300}-\u{1FAFF}]/gu, '') // remove emojis
+      .replace(/[•✅📍📞📅🏆🚫🚗🌧️🔥🧹🏥]/g, '')  // remove special symbols
+      .replace(/\n+/g, '. ')  // replace newlines with pauses
+      .trim();
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.rate = 0.9;
+    utterance.lang = 'en-PH'; // Philippine English for better local pronunciation
     
     utterance.onend = () => setPlaying(null);
     utterance.onerror = () => setPlaying(null);
@@ -95,7 +103,7 @@ export default function VoiceAnnouncements() {
                       size="sm"
                       variant="outline"
                       disabled={playing === c.id}
-                      onClick={() => handlePlay(`${c.title}. ${c.objectives}`, c.id)}
+                      onClick={() => handlePlay(`${c.title}. ${c.description || c.objectives || ''}`, c.id)}
                     >
                       {playing === c.id ? (
                         <><Square className="h-3 w-3 mr-1" /> Playing</>
@@ -112,7 +120,7 @@ export default function VoiceAnnouncements() {
                   </div>
                 </div>
                 {expanded === c.id && (
-                  <p className="text-sm text-muted-foreground mt-2">{c.objectives}</p>
+                  <p className="text-sm text-muted-foreground mt-2">{c.description || c.objectives || 'No description available'}</p>
                 )}
               </CardHeader>
             </Card>

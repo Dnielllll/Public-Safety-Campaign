@@ -1,11 +1,12 @@
-import React, { useState } from "react";
-import { MessageSquare, Send, CheckCircle2, Star } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { MessageSquare, Send, CheckCircle2, Star, Clock, Reply } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabaseHelpers } from "@/lib/supabase.js";
+import { Badge } from "@/components/ui/badge";
 
 const feedbackTypes = ["General Comment", "Suggestion", "Complaint", "Concern", "Compliment"];
 
@@ -14,40 +15,50 @@ export default function Feedback() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [history, setHistory] = useState([]);
+  const [fetchingHistory, setFetchingHistory] = useState(true);
+
+  useEffect(() => {
+    fetchMyFeedback();
+  }, [submitted]);
+
+  const fetchMyFeedback = async () => {
+    setFetchingHistory(true);
+    try {
+      const { user } = await supabaseHelpers.getAuthUser();
+      if (user) {
+        const { data } = await supabaseHelpers.getFeedback({ user_id: user.id });
+        setHistory(data || []);
+      }
+    } catch (err) {
+      console.error("Failed to load history", err);
+    } finally {
+      setFetchingHistory(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      await supabaseHelpers.createFeedback({ comment: form.message, rating: form.rating || 3 });
+      const { user } = await supabaseHelpers.getAuthUser();
+      const formattedComment = `[${form.type}] ${form.subject}\n\n${form.message}`;
+      
+      const { error: submitError } = await supabaseHelpers.createFeedback({ 
+        comment: formattedComment, 
+        rating: form.rating || 3,
+        user_id: user?.id
+      });
+      
+      if (submitError) throw submitError;
       setSubmitted(true);
-    } catch {
-      // Show success anyway for demo
-      setSubmitted(true);
+    } catch (err) {
+      setError(err.message || "Failed to submit feedback.");
     } finally {
       setLoading(false);
     }
   };
-
-  if (submitted) {
-    return (
-      <div className="container py-8 flex items-center justify-center min-h-[60vh]">
-        <div className="text-center max-w-sm">
-          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 className="h-8 w-8 text-primary" />
-          </div>
-          <h2 className="font-display text-xl font-bold mb-2">Thank you for your feedback!</h2>
-          <p className="text-muted-foreground text-sm mb-4">
-            Your feedback has been received. The barangay officials will review it and respond if necessary.
-          </p>
-          <Button onClick={() => { setSubmitted(false); setForm({ subject: "", type: "General Comment", message: "", rating: 0 }); }}>
-            Submit another
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="container py-8 max-w-2xl">
@@ -60,12 +71,28 @@ export default function Feedback() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Your Feedback</CardTitle>
-          <CardDescription>All feedback is reviewed by barangay officials. Your input helps improve our community services.</CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
+      {submitted ? (
+        <Card className="mb-8 py-8">
+          <div className="text-center max-w-sm mx-auto">
+            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="h-8 w-8 text-primary" />
+            </div>
+            <h2 className="font-display text-xl font-bold mb-2">Thank you for your feedback!</h2>
+            <p className="text-muted-foreground text-sm mb-4">
+              Your feedback has been received. The barangay officials will review it and respond if necessary.
+            </p>
+            <Button onClick={() => { setSubmitted(false); setForm({ subject: "", type: "General Comment", message: "", rating: 0 }); }}>
+              Submit another
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="text-base">Your Feedback</CardTitle>
+            <CardDescription>All feedback is reviewed by barangay officials. Your input helps improve our community services.</CardDescription>
+          </CardHeader>
+          <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="feedback-type">Feedback Type</Label>
@@ -130,6 +157,53 @@ export default function Feedback() {
           </CardFooter>
         </form>
       </Card>
+      )}
+
+      <div className="mb-4">
+        <h2 className="font-display text-xl font-bold flex items-center gap-2">
+          <Clock className="h-5 w-5 text-muted-foreground" /> My Feedback History
+        </h2>
+      </div>
+
+      {fetchingHistory ? (
+        <div className="text-center py-4 text-muted-foreground text-sm">Loading history...</div>
+      ) : history.length === 0 ? (
+        <div className="text-center py-4 text-muted-foreground text-sm border rounded-lg border-dashed">
+          You haven't submitted any feedback yet.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {history.map((item) => {
+            const isResponded = item.status === "responded" || item.response;
+            return (
+              <Card key={item.id} className="overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <Badge variant={isResponded ? "success" : "secondary"}>
+                      {isResponded ? "Responded" : "Sent to Admin"}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(item.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-sm font-medium mb-1 line-clamp-1">{item.comment.split('\n')[0]}</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{item.comment.substring(item.comment.indexOf('\n') + 2)}</p>
+                  
+                  {isResponded && item.response && (
+                    <div className="mt-4 p-3 bg-muted/50 rounded-md border border-primary/20">
+                      <div className="flex items-center gap-2 mb-1 text-primary">
+                        <Reply className="h-4 w-4" />
+                        <span className="text-xs font-bold">Admin Response</span>
+                      </div>
+                      <p className="text-sm text-foreground">{item.response}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

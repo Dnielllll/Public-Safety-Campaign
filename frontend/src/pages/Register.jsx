@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { CheckCircle, Loader2, Eye, EyeOff, Mail } from "lucide-react";
 import { supabaseHelpers } from "@/lib/supabase.js";
+import { notificationApi } from "@/lib/apiGateway.js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +29,7 @@ function SuccessScreen({ name, email, onContinue }) {
           Welcome to Barangay 178, <span className="font-semibold text-foreground">{name}</span>!
         </p>
         <p className="text-muted-foreground text-sm mb-4">
-          Your resident account has been successfully created and saved to the database.
+          Your resident account has been successfully created.
         </p>
 
         <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6 text-left">
@@ -86,6 +87,16 @@ export default function Register() {
       setError("Please enter your full name.");
       return;
     }
+    // Validate full name - only letters and spaces allowed
+    if (!/^[a-zA-Z\s]+$/.test(form.name.trim())) {
+      setError("Full name should only contain letters and spaces. No symbols or special characters.");
+      return;
+    }
+    // Validate phone number - max 11 digits only, no symbols
+    if (form.phone && (!/^\d+$/.test(form.phone) || form.phone.length > 11)) {
+      setError("Phone number should be maximum 11 digits only. No symbols or special characters.");
+      return;
+    }
     if (form.password.length < 6) {
       setError("Password must be at least 6 characters.");
       return;
@@ -97,7 +108,7 @@ export default function Register() {
       //   1. Creates a user in auth.users
       //   2. Sends a confirmation email (if enabled in project)
       //   3. The DB trigger (handle_new_user) auto-inserts into public.users
-      //      with name, phone, address, role='public' from metadata
+      //      with name, phone, address, role='citizen' from metadata
       const { data, error: signUpError } = await supabaseHelpers.signUp(
         form.email,
         form.password,
@@ -105,7 +116,7 @@ export default function Register() {
           name: form.name.trim(),
           phone: form.phone.trim(),
           address: form.address.trim(),
-          role: "public",
+          role: "citizen",
         }
       );
 
@@ -121,6 +132,14 @@ export default function Register() {
 
       if (!data?.user) {
         throw new Error("Registration failed. Please try again.");
+      }
+
+      // Send welcome email via notification-service
+      try {
+        await notificationApi.sendWelcome({ email: form.email, name: form.name.trim() });
+      } catch (mailErr) {
+        // Don't block registration if email fails — just log it
+        console.warn('Welcome email failed to send:', mailErr.message);
       }
 
       setLoading(false);
@@ -186,7 +205,7 @@ export default function Register() {
               <CardHeader>
                 <CardTitle>Create Resident Account</CardTitle>
                 <CardDescription>
-                  Get safety alerts and campaign updates. Your account will be saved to the Barangay 178 database.
+                  Get safety alerts and campaign updates.
                 </CardDescription>
               </CardHeader>
               <form onSubmit={handleSubmit}>
@@ -213,7 +232,7 @@ export default function Register() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <Label htmlFor="phone">Phone Number</Label>
                     <Input
                       id="phone"
                       placeholder="09XX XXX XXXX"
@@ -222,7 +241,7 @@ export default function Register() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="address">Address <span className="text-muted-foreground font-normal">(Purok/Street, optional)</span></Label>
+                    <Label htmlFor="address">Address</Label>
                     <Input
                       id="address"
                       placeholder="e.g. Purok 4, Camarin Road"

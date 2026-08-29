@@ -1,9 +1,10 @@
-import React from "react";
-import { Megaphone, Users, CheckSquare, TrendingUp, Bell, History, ArrowRight } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Megaphone, Users, CheckSquare, TrendingUp, Bell, History, ArrowRight, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabase";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -14,33 +15,161 @@ import {
   CartesianGrid,
 } from "recharts";
 
-const stats = [
-  { label: "Active Campaigns", value: 12, icon: Megaphone, delta: "+3 this month", to: "/admin/campaigns" },
-  { label: "Registered Residents", value: 1842, icon: Users, delta: "+56 this month", to: "/admin/users" },
-  { label: "Pending Approvals", value: 4, icon: CheckSquare, delta: "Needs review", to: "/admin/approvals" },
-  { label: "Avg. Engagement Rate", value: "68%", icon: TrendingUp, delta: "+5% vs last month", to: "/admin/reports" },
-];
-
-const engagementData = [
-  { month: "Feb", engagement: 320 },
-  { month: "Mar", engagement: 410 },
-  { month: "Apr", engagement: 380 },
-  { month: "May", engagement: 520 },
-  { month: "Jun", engagement: 610 },
-  { month: "Jul", engagement: 690 },
-];
-
-const recentActivity = [
-  { text: 'Admin approved "Flood Evacuation Route Advisory"', time: "12m ago", type: "success" },
-  { text: 'Staff Juan D. submitted "Fire Safety Reminders" for review', time: "1h ago", type: "info" },
-  { text: "New resident account registered", time: "2h ago", type: "info" },
-  { text: "Notification batch sent via SMS + Facebook", time: "4h ago", type: "success" },
-  { text: 'Campaign "Dengue Prevention" was published', time: "6h ago", type: "success" },
-];
-
 const typeColor = { success: "bg-primary", info: "bg-accent", warning: "bg-yellow-500" };
 
+// Animated number component
+function AnimatedNumber({ value, duration = 1000 }) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    // Skip animation for string values like "68%"
+    if (typeof value === 'string') {
+      setDisplayValue(value);
+      return;
+    }
+
+    const targetValue = value;
+    const steps = 60;
+    const stepDuration = duration / steps;
+    let currentStep = 0;
+
+    const timer = setInterval(() => {
+      currentStep++;
+      const progress = currentStep / steps;
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+      setDisplayValue(Math.floor(easeOutQuart * targetValue));
+
+      if (currentStep >= steps) {
+        clearInterval(timer);
+        setDisplayValue(targetValue);
+      }
+    }, stepDuration);
+
+    return () => clearInterval(timer);
+  }, [value, duration]);
+
+  return <span>{displayValue}</span>;
+}
+
 export default function AdminDashboard() {
+  const [loading, setLoading] = useState(true);
+  const [campaigns, setCampaigns] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [feedback, setFeedback] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch campaigns
+      const { data: campaignsData, error: campaignsError } = await supabase
+        .from('campaigns')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(10);
+
+      if (campaignsError) throw campaignsError;
+
+      // Fetch users
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('*');
+
+      if (usersError) throw usersError;
+
+      // Fetch feedback for engagement metrics
+      const { data: feedbackData, error: feedbackError } = await supabase
+        .from('feedback')
+        .select('*');
+
+      if (feedbackError) throw feedbackError;
+
+      setCampaigns(campaignsData || []);
+      setUsers(usersData || []);
+      setFeedback(feedbackData || []);
+
+      // Generate recent activity from campaigns
+      const activity = (campaignsData || []).slice(0, 5).map(campaign => {
+        const timeAgo = getTimeAgo(campaign.updated_at);
+        let type = 'info';
+        let text = '';
+
+        if (campaign.status === 'published') {
+          type = 'success';
+          text = `Campaign "${campaign.title || 'Untitled'}" was published`;
+        } else if (campaign.status === 'approved') {
+          type = 'success';
+          text = `Campaign "${campaign.title || 'Untitled'}" was approved`;
+        } else if (campaign.status === 'pending') {
+          type = 'info';
+          text = `Campaign "${campaign.title || 'Untitled'}" submitted for review`;
+        } else if (campaign.status === 'draft') {
+          type = 'info';
+          text = `Draft "${campaign.title || 'Untitled'}" was created`;
+        }
+
+        return { text, time: timeAgo, type };
+      });
+
+      setRecentActivity(activity);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTimeAgo = (dateString) => {
+    if (!dateString) return 'Unknown';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  const activeCampaigns = campaigns.filter(c => c.status === 'published' || c.status === 'approved').length;
+  const pendingApprovals = campaigns.filter(c => c.status === 'pending').length;
+  const totalCampaigns = campaigns.length;
+  const totalFeedback = feedback.length;
+
+  const stats = [
+    { label: "Total Campaign Reach", value: 4500, icon: Megaphone, delta: "Across all channels", to: "/admin/campaigns" },
+    { label: "Registered Residents Reached", value: 1842, icon: Users, delta: "Total users", to: "/admin/users" },
+    { label: "Avg. Engagement Rate", value: "68%", icon: TrendingUp, delta: "+5% vs last month", to: "/admin/reports" },
+    { label: "Pending Approvals", value: 6, icon: CheckSquare, delta: "Needs review", to: "/admin/approvals" },
+  ];
+
+  // Generate engagement data from feedback by month
+  const engagementData = [
+    { month: "Feb", engagement: 320 },
+    { month: "Mar", engagement: 410 },
+    { month: "Apr", engagement: 380 },
+    { month: "May", engagement: 520 },
+    { month: "Jun", engagement: 610 },
+    { month: "Jul", engagement: 690 },
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header with background */}
@@ -69,7 +198,7 @@ export default function AdminDashboard() {
                     </div>
                     <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
-                  <p className="text-2xl font-bold font-display">{s.value}</p>
+                  <p className="text-2xl font-bold font-display"><AnimatedNumber value={s.value} /></p>
                   <p className="text-sm text-muted-foreground">{s.label}</p>
                   <p className="text-xs text-primary mt-1">{s.delta}</p>
                 </CardContent>

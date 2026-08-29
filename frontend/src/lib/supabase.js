@@ -1,4 +1,4 @@
-﻿import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 // Supabase project credentials
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://zuuwqrxmkeryzbcrlrai.supabase.co';
@@ -106,6 +106,13 @@ export const supabaseHelpers = {
     return { data, error };
   },
 
+  async getAllContent(filters = {}) {
+    let query = supabase.from('content').select('*, campaigns(title, created_by)');
+    const { data, error } = await query.order('created_at', { ascending: false });
+    // If filtering by user is needed, you'd filter after or do a join
+    return { data, error };
+  },
+
   async createContent(contentData) {
     const { data, error } = await supabase.from('content').insert(contentData).select().single();
     return { data, error };
@@ -147,6 +154,7 @@ export const supabaseHelpers = {
 
   // Feedback
   async getFeedback(filters = {}) {
+    // Removed users and campaigns join because if they are null or RLS blocked, it can cause the whole query to return empty or error.
     let query = supabase.from('feedback').select('*');
     if (filters.campaign_id) query = query.eq('campaign_id', filters.campaign_id);
     if (filters.user_id) query = query.eq('user_id', filters.user_id);
@@ -161,6 +169,24 @@ export const supabaseHelpers = {
 
   async respondToFeedback(id, responseData) {
     const { data, error } = await supabase.from('feedback').update(responseData).eq('id', id).select().single();
+    return { data, error };
+  },
+
+  async flagFeedback(id, flagged = true) {
+    const { data, error } = await supabase.from('feedback').update({ flagged }).eq('id', id).select().single();
+    return { data, error };
+  },
+
+  // Surveys
+  async getSurveys(filters = {}) {
+    let query = supabase.from('surveys').select('*');
+    if (filters.status) query = query.eq('status', filters.status);
+    const { data, error } = await query.order('created_at', { ascending: false });
+    return { data, error };
+  },
+
+  async submitSurveyResponse(response) {
+    const { data, error } = await supabase.from('survey_responses').insert(response).select().single();
     return { data, error };
   },
 

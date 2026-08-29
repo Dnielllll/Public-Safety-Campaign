@@ -1,6 +1,13 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// API Gateway — routes all requests to the correct microservice via Nginx
+// /api/auth/*          → auth-service       (Laravel Sanctum)
+// /api/campaigns/*     → campaign-service   (Laravel)
+// /api/contents/*      → content-service    (Laravel)
+// /api/workflow/*      → workflow-service   (Laravel)
+// /api/notifications/* → notification-service (Node.js)
+const GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:8080';
+const API_URL = `${GATEWAY_URL}/api`;
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -118,6 +125,30 @@ export const CampaignsAPI = {
   },
   publish: async (id, payload) => {
     const response = await api.put(`/campaigns/${id}`, { status: 'completed' });
+    return { data: response.data };
+  },
+  getApproved: async () => {
+    const response = await api.get('/campaigns/approved');
+    return { data: response.data };
+  },
+  distributeSMS: async (campaignData, phoneNumbers) => {
+    // Routed to notification-service via gateway: /api/notifications/sms/bulk
+    const response = await axios.post(`${GATEWAY_URL}/api/notifications/sms/bulk`, {
+      phone_numbers: phoneNumbers,
+      campaign_title: campaignData.title,
+      campaign_description: campaignData.description,
+      provider: 'iprog',
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('auth_token') || ''}`,
+      },
+    });
+    return { data: response.data };
+  },
+  getResidentPhoneNumbers: async () => {
+    const response = await api.get('/campaigns/resident-phone-numbers');
     return { data: response.data };
   },
 };

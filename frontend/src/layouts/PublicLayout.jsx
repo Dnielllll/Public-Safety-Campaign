@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate, Navigate } from "react-router-dom";
 import { Bell, MessageSquare, Siren, User, Home, Megaphone, Volume2, ClipboardList, LogOut, Menu, X, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth.jsx";
@@ -51,7 +51,7 @@ export default function PublicLayout() {
             </Link>
 
             {/* Desktop navigation */}
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
               {navItems.map((item) => {
                 // Hide feedback and surveys from anonymous users
                 if (item.to === "/feedback" || item.to === "/surveys") return null;
@@ -148,8 +148,8 @@ export default function PublicLayout() {
   }
 
   // Authenticated resident view: Sidebar navigation (similar to Admin/Staff)
-  // Only show sidebar if user has valid 'public' role
-  if (user.role === 'public') {
+  // Only show sidebar if user has valid 'citizen' or 'public' role
+  if (user.role === 'citizen' || user.role === 'public') {
     return (
       <div className="min-h-screen flex bg-background">
         {loggingOut && <LogoutOverlay onDone={doLogout} />}
@@ -305,14 +305,18 @@ export default function PublicLayout() {
             </div>
           </footer>
         </div>
+        <AIChatbot />
       </div>
     );
   }
 
-  // For admin/staff users, they should use DashboardLayout, not PublicLayout
-  // This is handled by routing in App.jsx, so return null to prevent rendering
-  if (user.role === 'admin' || user.role === 'staff') {
-    return null;
+  // For admin/staff/super_admin users, redirect them to their respective dashboards
+  // if they land on public routes, rather than returning a blank screen (null)
+  if (user.role === 'super_admin' || user.role === 'admin') {
+    return <Navigate to="/admin" replace />;
+  }
+  if (user.role === 'staff') {
+    return <Navigate to="/staff" replace />;
   }
 
   // Fallback for any other case

@@ -35,6 +35,7 @@ import AnalyticsReports from "@/pages/admin/AnalyticsReports";
 import ProcessMonitoring from "@/pages/admin/ProcessMonitoring";
 import AuditTrail from "@/pages/admin/AuditTrail";
 import SystemSettings from "@/pages/admin/SystemSettings";
+import SuperAdminDashboard from "@/pages/admin/SuperAdminDashboard";
 
 // Staff subsystem (2.1 – 2.9)
 import StaffDashboard from "@/pages/staff/Dashboard";
@@ -67,7 +68,7 @@ export default function App() {
         <Route
           path="/profile"
           element={
-            <RequireRole roles={["public", "admin", "staff"]}>
+            <RequireRole roles={["citizen", "public", "admin", "staff", "super_admin"]}>
               <Profile />
             </RequireRole>
           }
@@ -75,7 +76,7 @@ export default function App() {
         <Route
           path="/feedback"
           element={
-            <RequireRole roles={["public", "admin", "staff"]}>
+            <RequireRole roles={["citizen", "public", "admin", "staff", "super_admin"]}>
               <Feedback />
             </RequireRole>
           }
@@ -83,11 +84,36 @@ export default function App() {
         <Route
           path="/surveys"
           element={
-            <RequireRole roles={["public", "admin", "staff"]}>
+            <RequireRole roles={["citizen", "public", "admin", "staff", "super_admin"]}>
               <Surveys />
             </RequireRole>
           }
         />
+      </Route>
+
+      {/* Super Admin subsystem */}
+      <Route
+        path="/super-admin"
+        element={
+          <RequireRole roles={["super_admin"]}>
+            <DashboardLayout role="super_admin" />
+          </RequireRole>
+        }
+      >
+        <Route index element={<SuperAdminDashboard />} />
+        <Route path="users" element={<UserManagement />} />
+        <Route path="campaigns" element={<CampaignManagement />} />
+        <Route path="ai-assistant" element={<AIContentAssistant />} />
+        <Route path="content" element={<ContentManagement />} />
+        <Route path="approvals" element={<CampaignApproval />} />
+        <Route path="distribution" element={<Distribution />} />
+        <Route path="notifications" element={<NotificationManagement />} />
+        <Route path="feedback" element={<FeedbackManagement />} />
+        <Route path="reports" element={<AnalyticsReports />} />
+        <Route path="process-monitoring" element={<ProcessMonitoring />} />
+        <Route path="audit-trail" element={<AuditTrail />} />
+        <Route path="settings" element={<SystemSettings />} />
+        <Route path="profile" element={<Profile />} />
       </Route>
 
       {/* Admin subsystem */}

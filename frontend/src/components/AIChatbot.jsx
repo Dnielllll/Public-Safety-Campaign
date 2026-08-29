@@ -36,7 +36,7 @@ export default function AIChatbot() {
       const prompt = `${history}\nuser: ${userMsg.content}`;
       
       const response = await generateAIResponse(
-        "You are a helpful, brief, and accurate safety assistant for Barangay 178 residents. Provide quick safety tips, emergency procedures, or general advice. If a user asks about submitting concerns, complaints, or inquiries, provide the physical and Facebook contact info, AND strongly recommend that they 'create an account or log in as a resident' to submit concerns directly through the system. Keep answers under 3 short paragraphs.",
+        "You are a helpful, brief, and accurate safety assistant for Barangay 178 residents. You can answer questions about: 1) Safety tips and emergency procedures, 2) The Barangay 178 Public Safety Campaign System features including: Safety Campaigns page (view published campaigns), Feedback section (submit concerns/complaints), Surveys (participate in campaign evaluations), Voice Announcements (listen to AI voice updates), and the Public Dashboard. 3) How to navigate and use the system. IMPORTANT: If a user asks about submitting concerns, complaints, or inquiries, ALWAYS tell them to go to the Feedback section of this system by navigating to the Feedback page. Also mention the physical Barangay 178 Hall in Camarin, Caloocan City and the official Facebook page as alternatives. Keep answers under 3 short paragraphs.",
         prompt
       );
       
@@ -103,10 +103,10 @@ export default function AIChatbot() {
               )}>
                 {msg.role === "user" ? <User className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
               </div>
-              <div className={cn("rounded-2xl px-3 py-2 text-sm", 
+              <div className={cn("rounded-2xl px-3 py-2 text-sm whitespace-pre-line", 
                 msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
               )}>
-                {msg.content}
+                {msg.content.replace(/\*/g, '')}
               </div>
             </div>
           ))}

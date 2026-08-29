@@ -1,17 +1,40 @@
-import React from "react";
-import { BarChart3, Download } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { BarChart3, Loader2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-
-const data = [
-  { campaign: "Fire Safety", engagement: 842 },
-  { campaign: "Flood Advisory", engagement: 1102 },
-  { campaign: "Anti-Scam", engagement: 401 },
-];
+import { supabaseHelpers } from "@/lib/supabase.js";
 
 export default function StaffReports() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  const fetchReports = async () => {
+    setLoading(true);
+    const { user } = await supabaseHelpers.getAuthUser();
+    if (user) {
+      const { data: campaigns } = await supabaseHelpers.getCampaigns({ created_by: user.id });
+      if (campaigns && campaigns.length > 0) {
+        const reportData = await Promise.all(
+          campaigns.map(async (c) => {
+            const { data: engagements } = await supabaseHelpers.getEngagementByCampaign(c.id);
+            return {
+              campaign: c.title.length > 15 ? c.title.substring(0, 15) + "..." : c.title,
+              engagement: engagements ? engagements.length : 0
+            };
+          })
+        );
+        setData(reportData);
+      } else {
+        setData([]);
+      }
+    }
+    setLoading(false);
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -24,35 +47,24 @@ export default function StaffReports() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Engagement — Assigned Campaigns</CardTitle>
-          <CardDescription>Views, reactions, shares, and comments</CardDescription>
+          <CardDescription>Total engagements per campaign</CardDescription>
         </CardHeader>
-        <CardContent className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="campaign" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-              <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
-              <Bar dataKey="engagement" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Exportable Reports</CardTitle>
-        </CardHeader>
-        <CardContent className="divide-y divide-border">
-          {["Fire Safety Reminders — Performance Summary", "Flood Evacuation Route Advisory — Performance Summary"].map((r) => (
-            <div key={r} className="flex items-center justify-between py-3">
-              <span className="text-sm font-medium">{r}</span>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">Authorized</Badge>
-                <Button variant="ghost" size="sm"><Download className="h-4 w-4" /></Button>
-              </div>
-            </div>
-          ))}
+        <CardContent className="h-72 flex items-center justify-center">
+          {loading ? (
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          ) : data.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="campaign" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />
+                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
+                <Bar dataKey="engagement" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-muted-foreground text-sm">No campaign data available.</p>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -5,9 +5,9 @@ export default function LoginOverlay({ userName, onDone }) {
   const [phase, setPhase] = useState("enter");
 
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase("visible"), 50);
-    const t2 = setTimeout(() => setPhase("exit"), 1700);
-    const t3 = setTimeout(() => onDone?.(), 2100);
+    const t1 = setTimeout(() => setPhase("visible"), 10);
+    const t2 = setTimeout(() => setPhase("exit"), 600);
+    const t3 = setTimeout(() => onDone?.(), 900);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [onDone]);
 

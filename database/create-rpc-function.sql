@@ -26,10 +26,10 @@ DECLARE
   result  JSON;
 BEGIN
 
-  -- Security check: only admins can call this function
+  -- Security check: only active admins or superadmins can call this function
   IF NOT EXISTS (
     SELECT 1 FROM public.users
-    WHERE id = auth.uid() AND role = 'admin' AND is_active = true
+    WHERE id = auth.uid() AND role IN ('admin', 'superadmin', 'super_admin') AND is_active = true
   ) THEN
     RAISE EXCEPTION 'Access denied: Only active admins can create users';
   END IF;

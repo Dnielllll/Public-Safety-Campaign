@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/lib/supabase.js";
+import { supabase, supabaseHelpers } from "@/lib/supabase.js";
 
 export default function Surveys() {
   const [surveys, setSurveys] = useState([]);
@@ -14,8 +14,8 @@ export default function Surveys() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.from('surveys').select('*').eq('status', 'active').order('created_at', { ascending: false })
-      .then(({ data }) => setSurveys(Array.isArray(data) ? data : []))
+    supabase.from('surveys').select('*, survey_questions(*)').eq('status', 'active').order('created_at', { ascending: false })
+      .then(({ data }) => setSurveys(Array.isArray(data) && data.length > 0 ? data : mockSurveys))
       .catch(() => setSurveys(mockSurveys));
   }, []);
 
@@ -25,10 +25,20 @@ export default function Surveys() {
     e.preventDefault();
     setLoading(true);
     try {
-      await SurveysAPI.respond(selected.id, { answers });
-    } catch { /* proceed anyway */ }
-    setSubmitted(true);
-    setLoading(false);
+      const { user } = await supabaseHelpers.getAuthUser();
+      const { error } = await supabaseHelpers.submitSurveyResponse({
+        survey_id: selected.id,
+        user_id: user?.id,
+        response_data: answers
+      });
+      if (error) throw error;
+      setSubmitted(true);
+    } catch (error) {
+      console.error(error);
+      alert("Failed to submit survey. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (submitted) {
@@ -166,6 +176,8 @@ const mockSurveys = [
       { question: "Do you have a fire extinguisher at home?", type: "radio", options: ["Yes", "No", "Planning to get one"] },
       { question: "How would you rate the barangay's fire safety campaign?", type: "scale" },
       { question: "What improvements would you suggest?", type: "text" },
+      { question: "Do you know the emergency fire hotline number?", type: "radio", options: ["Yes", "No"] },
+      { question: "How often do you check electrical appliances for safety?", type: "radio", options: ["Daily", "Weekly", "Monthly", "Rarely"] },
     ],
   },
   {
@@ -177,6 +189,60 @@ const mockSurveys = [
       { question: "Have you applied the 4S strategy in your home?", type: "radio", options: ["Yes, all 4 steps", "Some steps only", "Not yet"] },
       { question: "Rate the campaign's impact in your area", type: "scale" },
       { question: "Additional comments", type: "text" },
+      { question: "How often do you clean potential mosquito breeding sites?", type: "radio", options: ["Daily", "Weekly", "Monthly", "Rarely"] },
+      { question: "Have you or a family member had dengue in the past year?", type: "radio", options: ["Yes", "No"] },
+    ],
+  },
+  {
+    id: 3,
+    title: "Flood Evacuation Route Awareness",
+    description: "Assess awareness of flood evacuation procedures and routes.",
+    category: "Disaster Preparedness",
+    questions: [
+      { question: "Do you know the designated evacuation route for your area?", type: "radio", options: ["Yes", "No"] },
+      { question: "Rate the clarity of evacuation route signage", type: "scale" },
+      { question: "Have you participated in a flood drill?", type: "radio", options: ["Yes", "No"] },
+      { question: "Do you have an emergency preparedness kit?", type: "radio", options: ["Yes", "No", "In progress"] },
+      { question: "Suggestions for improving evacuation procedures", type: "text" },
+    ],
+  },
+  {
+    id: 4,
+    title: "Anti-Scam Awareness Campaign",
+    description: "Evaluate the effectiveness of anti-scam awareness efforts.",
+    category: "Public Safety",
+    questions: [
+      { question: "Are you aware of common scam tactics?", type: "radio", options: ["Yes, very aware", "Somewhat aware", "Not aware"] },
+      { question: "Rate the usefulness of anti-scam information provided", type: "scale" },
+      { question: "Have you encountered a scam attempt recently?", type: "radio", options: ["Yes", "No"] },
+      { question: "Do you know how to report scams?", type: "radio", options: ["Yes", "No"] },
+      { question: "What additional anti-scam topics would you like to learn about?", type: "text" },
+    ],
+  },
+  {
+    id: 5,
+    title: "Environmental Cleanliness Campaign",
+    description: "Assess the impact of environmental cleanliness initiatives.",
+    category: "Environment",
+    questions: [
+      { question: "How would you rate the cleanliness of your neighborhood?", type: "scale" },
+      { question: "Do you participate in community clean-up activities?", type: "radio", options: ["Regularly", "Sometimes", "Never"] },
+      { question: "Rate the effectiveness of waste management in your area", type: "scale" },
+      { question: "Do you practice proper waste segregation?", type: "radio", options: ["Always", "Sometimes", "Never"] },
+      { question: "Suggestions for improving environmental cleanliness", type: "text" },
+    ],
+  },
+  {
+    id: 6,
+    title: "Road Safety Awareness Survey",
+    description: "Evaluate road safety awareness and campaign effectiveness.",
+    category: "Public Safety",
+    questions: [
+      { question: "Do you follow traffic rules consistently?", type: "radio", options: ["Always", "Sometimes", "Rarely"] },
+      { question: "Rate the visibility of road safety signs in your area", type: "scale" },
+      { question: "Have you attended a road safety seminar?", type: "radio", options: ["Yes", "No"] },
+      { question: "How would you rate pedestrian safety in your area?", type: "scale" },
+      { question: "Suggestions for improving road safety", type: "text" },
     ],
   },
 ];
