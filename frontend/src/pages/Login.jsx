@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth.jsx";
 import LoginOverlay from "@/components/LoginOverlay.jsx";
-import { supabaseHelpers } from "@/lib/supabase.js";
+import emailjs from '@emailjs/browser';
 
 export default function Login() {
   const { login } = useAuth();
@@ -61,19 +61,34 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Send OTP via Supabase Auth
-      const { data, error } = await supabaseHelpers.sendEmailOTP(form.email);
+      // Generate OTP
+      const otp = generateOTP();
+      const expiry = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes expiry
+      setOtpExpiry(expiry);
+      setOtpTimer(120);
 
-      if (error) {
-        setError("Failed to send OTP. Please check your email address.");
-        setLoading(false);
-        return;
-      }
+      // Store OTP in localStorage
+      localStorage.setItem(`otp_${form.email}`, JSON.stringify({ otp, expiry: expiry.toISOString() }));
 
-      setOtpTimer(120); // 2 minutes
+      // Send OTP via EmailJS
+      const templateParams = {
+        to_email: form.email,
+        otp_code: otp,
+        expiry_minutes: 2
+      };
+
+      await emailjs.send(
+        import.meta.env.VITE_EMAILJS_SERVICE_ID,
+        import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+        templateParams,
+        import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+      );
+
       setShowOTP(true);
       setSuccessMsg("OTP sent to your email. Valid for 2 minutes.");
     } catch (err) {
+      // Clear the stored OTP if email sending failed
+      localStorage.removeItem(`otp_${form.email}`);
       setError("Failed to send OTP. Please check your email address or try again.");
     } finally {
       setLoading(false);
@@ -86,16 +101,32 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Verify OTP via Supabase Auth
-      const { data, error } = await supabaseHelpers.verifyEmailOTP(form.email, form.otp);
+      // Validate OTP
+      const stored = localStorage.getItem(`otp_${form.email}`);
+      if (!stored) {
+        setError("OTP expired or invalid. Please request a new OTP.");
+        setLoading(false);
+        return;
+      }
 
-      if (error) {
+      const { otp, expiry } = JSON.parse(stored);
+      const now = new Date();
+      const expiryDate = new Date(expiry);
+
+      if (now > expiryDate) {
+        localStorage.removeItem(`otp_${form.email}`);
+        setError("OTP expired. Please request a new OTP.");
+        setLoading(false);
+        return;
+      }
+
+      if (form.otp !== otp) {
         setError("Invalid OTP. Please try again.");
         setLoading(false);
         return;
       }
 
-      // OTP verified, proceed with password login
+      // OTP is valid, proceed with password login
       handlePasswordLogin();
     } catch (err) {
       setError("Invalid OTP. Please try again.");
@@ -169,16 +200,29 @@ export default function Login() {
         setPendingDest(dest);
         setLoggingIn(true);
       } else {
-        // For staff and citizens, use Supabase Auth email OTP
-        const { data, error } = await supabaseHelpers.sendEmailOTP(form.email);
+        // For staff and citizens, generate and require OTP
+        const otp = generateOTP();
+        const expiry = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes expiry
+        setOtpExpiry(expiry);
+        setOtpTimer(120);
 
-        if (error) {
-          setError("Failed to send OTP. Please check your email address.");
-          setLoading(false);
-          return;
-        }
+        // Store OTP in localStorage
+        localStorage.setItem(`otp_${form.email}`, JSON.stringify({ otp, expiry: expiry.toISOString() }));
 
-        setOtpTimer(120); // 2 minutes
+        // Send OTP via EmailJS
+        const templateParams = {
+          to_email: form.email,
+          otp_code: otp,
+          expiry_minutes: 2
+        };
+
+        await emailjs.send(
+          import.meta.env.VITE_EMAILJS_SERVICE_ID,
+          import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+          templateParams,
+          import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+        );
+
         setLoading(false);
         setShowOTP(true);
         setSuccessMsg("OTP sent to your email. Valid for 2 minutes.");
