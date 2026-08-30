@@ -113,13 +113,24 @@ export default function SafetyCampaigns() {
       .replace(/\n+/g, '. ')  // replace newlines with pauses
       .trim();
 
-    const utterance = new SpeechSynthesisUtterance(`${campaign.title}. ${content}`);
-    utterance.rate = 0.9;
-    utterance.lang = 'en-PH';
-    utterance.onend = () => setPlaying(null);
-    utterance.onerror = () => setPlaying(null);
+    // Small timeout fixes iOS/Android bug where cancel() blocks the next speak()
+    setTimeout(() => {
+      const utterance = new SpeechSynthesisUtterance(`${campaign.title}. ${content}`);
+      // Use standard English if en-PH fails on some devices
+      utterance.lang = 'en-US'; 
+      utterance.rate = 0.9;
+      
+      utterance.onend = () => setPlaying(null);
+      utterance.onerror = (e) => {
+        console.error("Speech error:", e);
+        setPlaying(null);
+      };
 
-    window.speechSynthesis.speak(utterance);
+      // PREVENT GARBAGE COLLECTION BUG ON MOBILE (Crucial for iOS/Android)
+      window._activeUtterance = utterance;
+
+      window.speechSynthesis.speak(utterance);
+    }, 50);
   };
 
   if (selected) {
