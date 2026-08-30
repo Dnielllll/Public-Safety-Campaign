@@ -1,5 +1,5 @@
-# Laravel Microservice Dockerfile
-# Used by: auth-service, campaign-service, content-service, workflow-service
+# Laravel Microservice Dockerfile for Railway
+# Build context: services/auth-service
 FROM php:8.3-fpm-alpine
 
 # Install system dependencies
@@ -25,15 +25,8 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Copy shared Laravel bootstrap from the backend directory
-# The build context must be the repo root so we can access backend/
-COPY backend/ ./
-
-# Override routes, controllers, models, and config with service-specific files
-COPY services/auth-service/routes/        ./routes/
-COPY services/auth-service/app/           ./app/
-COPY services/auth-service/composer.json  ./composer.json
-COPY services/auth-service/.env.example   ./.env.example
+# Copy service-specific files (build context is services/auth-service)
+COPY . ./
 
 # Install PHP dependencies for this service
 RUN composer install --optimize-autoloader --no-dev --no-interaction
@@ -50,6 +43,6 @@ RUN chown -R www-data:www-data /var/www/html \
 EXPOSE 9000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD php artisan tinker --execute="echo 'ok';" || exit 1
+  CMD php-fpm -t || exit 1
 
 CMD ["php-fpm"]
