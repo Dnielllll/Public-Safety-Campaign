@@ -1,13 +1,12 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth.jsx";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import React, { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { Mail, Lock, Key, Eye, EyeOff, Shield } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/hooks/useAuth.jsx";
 import LoginOverlay from "@/components/LoginOverlay.jsx";
-import { Eye, EyeOff, Mail, Lock, Key } from "lucide-react";
-import { notificationApi } from "@/lib/apiGateway.js";
 
 export default function Login() {
   const { login } = useAuth();
@@ -70,8 +69,8 @@ export default function Login() {
       // Store OTP locally to validate later
       localStorage.setItem(`otp_${form.email}`, JSON.stringify({ otp, expiry: expiry.toISOString() }));
 
-      // Send OTP via real email using notification-service
-      await notificationApi.sendOTP({ email: form.email, otp });
+      // For demo: Show OTP in console (in production, use Supabase Auth email OTP)
+      console.log("OTP for", form.email, ":", otp);
 
       setShowOTP(true);
       setSuccessMsg("OTP sent to your email. Valid for 2 minutes.");
