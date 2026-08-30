@@ -148,6 +148,9 @@ export default function Login() {
 
       // Clear OTP after successful login
       localStorage.removeItem(`otp_${form.email}`);
+      
+      // Save verification timestamp for 30-minute bypass
+      localStorage.setItem(`otp_verified_at_${form.email}`, Date.now().toString());
 
       // Determine destination based on role
       let dest = "/";
@@ -202,7 +205,23 @@ export default function Login() {
         setPendingDest(dest);
         setLoggingIn(true);
       } else {
-        // For staff and citizens, generate and require OTP
+        // Check if OTP was verified in the last 30 minutes
+        const lastVerifiedStr = localStorage.getItem(`otp_verified_at_${form.email}`);
+        if (lastVerifiedStr) {
+          const lastVerified = parseInt(lastVerifiedStr, 10);
+          const thirtyMins = 30 * 60 * 1000;
+          if (Date.now() - lastVerified < thirtyMins) {
+            // Bypass OTP, proceed to destination
+            let dest = user.role === "staff" ? "/staff" : "/";
+            setLoggedInUser(user);
+            setPendingDest(dest);
+            setLoggingIn(true);
+            setLoading(false);
+            return;
+          }
+        }
+
+        // For staff and citizens not verified recently, generate and require OTP
         const otp = generateOTP();
         const expiry = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes expiry
         setOtpExpiry(expiry);
