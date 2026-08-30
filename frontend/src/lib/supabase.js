@@ -30,6 +30,26 @@ export const supabaseHelpers = {
     return { data, error };
   },
 
+  // Email OTP functions
+  async sendEmailOTP(email) {
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false, // Don't create user automatically
+      },
+    });
+    return { data, error };
+  },
+
+  async verifyEmailOTP(email, token) {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'email',
+    });
+    return { data, error };
+  },
+
   async signOut() {
     const { error } = await supabase.auth.signOut();
     return { error };

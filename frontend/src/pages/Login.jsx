@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth.jsx";
 import LoginOverlay from "@/components/LoginOverlay.jsx";
+import { supabaseHelpers } from "@/lib/supabase.js";
 
 export default function Login() {
   const { login } = useAuth();
@@ -60,23 +61,19 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Generate OTP
-      const otp = generateOTP();
-      const expiry = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes expiry
-      setOtpExpiry(expiry);
-      setOtpTimer(120);
+      // Send OTP via Supabase Auth
+      const { data, error } = await supabaseHelpers.sendEmailOTP(form.email);
 
-      // Store OTP locally to validate later
-      localStorage.setItem(`otp_${form.email}`, JSON.stringify({ otp, expiry: expiry.toISOString() }));
+      if (error) {
+        setError("Failed to send OTP. Please check your email address.");
+        setLoading(false);
+        return;
+      }
 
-      // For demo: Show OTP in console (in production, use Supabase Auth email OTP)
-      console.log("OTP for", form.email, ":", otp);
-
+      setOtpTimer(120); // 2 minutes
       setShowOTP(true);
       setSuccessMsg("OTP sent to your email. Valid for 2 minutes.");
     } catch (err) {
-      // Clear the stored OTP if email sending failed
-      localStorage.removeItem(`otp_${form.email}`);
       setError("Failed to send OTP. Please check your email address or try again.");
     } finally {
       setLoading(false);
@@ -89,31 +86,17 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const storedOTPData = JSON.parse(localStorage.getItem(`otp_${form.email}`));
-      if (!storedOTPData) {
-        setError("Invalid or expired OTP. Please request a new one.");
-        setLoading(false);
-        return;
-      }
+      // Verify OTP via Supabase Auth
+      const { data, error } = await supabaseHelpers.verifyEmailOTP(form.email, form.otp);
 
-      const now = new Date();
-      const expiry = new Date(storedOTPData.expiry);
-
-      if (now > expiry) {
-        setError("OTP expired. Please request a new one.");
-        localStorage.removeItem(`otp_${form.email}`);
-        setLoading(false);
-        return;
-      }
-
-      if (form.otp !== storedOTPData.otp) {
+      if (error) {
         setError("Invalid OTP. Please try again.");
         setLoading(false);
         return;
       }
 
-      // OTP is valid, proceed with password login
-      await handlePasswordLogin();
+      // OTP verified, proceed with password login
+      handlePasswordLogin();
     } catch (err) {
       setError("Invalid OTP. Please try again.");
       setLoading(false);
@@ -186,18 +169,16 @@ export default function Login() {
         setPendingDest(dest);
         setLoggingIn(true);
       } else {
-        // For staff and citizens, generate and require OTP
-        const otp = generateOTP();
-        const expiry = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes expiry
-        setOtpExpiry(expiry);
-        setOtpTimer(120);
+        // For staff and citizens, use Supabase Auth email OTP
+        const { data, error } = await supabaseHelpers.sendEmailOTP(form.email);
 
-        // Store OTP in localStorage
-        localStorage.setItem(`otp_${form.email}`, JSON.stringify({ otp, expiry: expiry.toISOString() }));
+        if (error) {
+          setError("Failed to send OTP. Please check your email address.");
+          setLoading(false);
+          return;
+        }
 
-        // For demo: Show OTP in console (in production, use Supabase Auth email OTP)
-        console.log("OTP for", form.email, ":", otp);
-
+        setOtpTimer(120); // 2 minutes
         setLoading(false);
         setShowOTP(true);
         setSuccessMsg("OTP sent to your email. Valid for 2 minutes.");
