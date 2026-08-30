@@ -195,18 +195,8 @@ export default function Login() {
         // Store OTP in localStorage
         localStorage.setItem(`otp_${form.email}`, JSON.stringify({ otp, expiry: expiry.toISOString() }));
 
-        // Send OTP via email using the notification service
-        try {
-            await notificationApi.sendOTP({ email: form.email, otp: otp });
-            console.log("OTP email sent request successful");
-        } catch (err) {
-            console.error("Failed to send OTP email:", err);
-            setError("Failed to send OTP to your email. Please try again.");
-            setLoading(false);
-            return;
-        }
-
-
+        // For demo: Show OTP in console (in production, use Supabase Auth email OTP)
+        console.log("OTP for", form.email, ":", otp);
 
         setLoading(false);
         setShowOTP(true);
