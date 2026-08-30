@@ -76,7 +76,7 @@ export default function Login() {
         to_name: form.email.split('@')[0],
         otp_code: otp,
         expiry_minutes: 2,
-        logo_url: 'https://raw.githubusercontent.com/Dnielllll/Public-Safety-Campaign/main/logo.png',
+        logo_url: 'https://i.imgur.com/bphZEMi.png',
       };
 
       await emailjs.send(
@@ -217,7 +217,7 @@ export default function Login() {
           to_name: form.email.split('@')[0],
           otp_code: otp,
           expiry_minutes: 2,
-          logo_url: 'https://raw.githubusercontent.com/Dnielllll/Public-Safety-Campaign/main/logo.png',
+          logo_url: 'https://i.imgur.com/bphZEMi.png',
         };
 
         await emailjs.send(
