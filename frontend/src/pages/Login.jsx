@@ -73,8 +73,10 @@ export default function Login() {
       // Send OTP via EmailJS
       const templateParams = {
         to_email: form.email,
+        to_name: form.email.split('@')[0],
         otp_code: otp,
-        expiry_minutes: 2
+        expiry_minutes: 2,
+        logo_url: 'https://raw.githubusercontent.com/Dnielllll/Public-Safety-Campaign/main/logo.png',
       };
 
       await emailjs.send(
@@ -212,8 +214,10 @@ export default function Login() {
         // Send OTP via EmailJS
         const templateParams = {
           to_email: form.email,
+          to_name: form.email.split('@')[0],
           otp_code: otp,
-          expiry_minutes: 2
+          expiry_minutes: 2,
+          logo_url: 'https://raw.githubusercontent.com/Dnielllll/Public-Safety-Campaign/main/logo.png',
         };
 
         await emailjs.send(
