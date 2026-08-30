@@ -1,5 +1,5 @@
 # Laravel Microservice Dockerfile for Railway
-# Build context: services/auth-service
+# Build context: services/auth-service (Railway root directory)
 FROM php:8.3-fpm-alpine
 
 # Install system dependencies
@@ -25,7 +25,7 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Copy service-specific files (build context is services/auth-service)
+# Copy all files from current directory (services/auth-service)
 COPY . ./
 
 # Install PHP dependencies for this service
