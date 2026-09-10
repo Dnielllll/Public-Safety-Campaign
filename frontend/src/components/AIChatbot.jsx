@@ -1,0 +1,156 @@
+import React, { useState, useEffect, useRef } from "react";
+import { MessageSquare, X, Send, Bot, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { generateAIResponse } from "@/lib/ai.js";
+import { cn } from "@/lib/utils";
+
+export default function AIChatbot() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState([
+    { role: "assistant", content: "Hello! I am your Barangay 178 AI Safety Assistant. How can I help you prepare or stay safe today?" }
+  ]);
+  const [input, setInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isTyping]);
+
+  const handleSend = async (e) => {
+    e?.preventDefault();
+    if (!input.trim() || isTyping) return;
+
+    const userMsg = { role: "user", content: input };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setIsTyping(true);
+
+    try {
+      const history = messages.map(m => `${m.role}: ${m.content}`).join("\n");
+      const prompt = `${history}\nuser: ${userMsg.content}`;
+      
+      const response = await generateAIResponse(
+        "You are a helpful, brief, and accurate safety assistant for the Barangay 178 Public Safety Campaign System. FAST FACTS: The current Punong Barangay (Barangay Captain) of Barangay 178 in Caloocan City is Editha Labasbas. STRICT RULES: 1) You may ONLY answer questions related to the Public Safety Campaign system and basic Barangay 178 official info (safety tips, emergency procedures, submitting feedback/complaints, navigating the system, barangay officials). 2) If a user asks an unrelated question (e.g., math, general trivia, '1+1') or attempts a personal/casual conversation (e.g., 'I love you'), you MUST politely refuse and say: 'I'm sorry, but I can only assist with questions related to the Public Safety Campaign system and Barangay 178.' 3) If a user simply greets you ('Hi', 'Hello'), respond normally, introduce yourself as the Public Safety Campaign Assistant, and offer help. 4) If they ask how to submit concerns, complaints, feedback, or suggestions, you MUST tell them: 'Please sign up or log in to your Resident account, then go to the Feedback section to submit your concern.' Keep answers under 3 short paragraphs.",
+        prompt
+      );
+      
+      setMessages((prev) => [...prev, { role: "assistant", content: response }]);
+    } catch (error) {
+      console.error("Chatbot error:", error);
+      const errorStr = error.message?.toLowerCase() || "";
+      const isKeyMissing = errorStr.includes("api key is not configured") || errorStr.includes("api_key");
+      const isRateLimit = errorStr.includes("429") || errorStr.includes("quota") || errorStr.includes("too many requests");
+      
+      let errMsg = "Sorry, I am having trouble connecting right now. Please try again later.";
+      if (isKeyMissing) {
+        errMsg = "The Gemini API key is missing. Please add VITE_GEMINI_API_KEY to your environment variables.";
+      } else if (isRateLimit) {
+        errMsg = "You are asking questions a bit too quickly and we have hit the API rate limit. Please wait about a minute and try asking again!";
+      }
+      setMessages((prev) => [...prev, { role: "assistant", content: errMsg }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  return (
+    <>
+      {/* Floating Button */}
+      <button
+        onClick={() => setIsOpen(true)}
+        className={cn(
+          "fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-all z-50",
+          isOpen && "scale-0 opacity-0"
+        )}
+      >
+        <MessageSquare className="h-6 w-6" />
+      </button>
+
+      {/* Chat Window */}
+      <div
+        className={cn(
+          "fixed bottom-6 right-6 w-[350px] sm:w-[400px] h-[500px] bg-white rounded-2xl shadow-2xl border border-border flex flex-col transition-all z-50 origin-bottom-right duration-300",
+          isOpen ? "scale-100 opacity-100" : "scale-50 opacity-0 pointer-events-none"
+        )}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-border bg-primary/5 rounded-t-2xl">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+              <Bot className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">AI Safety Assistant</h3>
+              <p className="text-xs text-muted-foreground">Powered by Gemini AI</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsOpen(false)}
+            className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+            aria-label="Close chatbot"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.map((msg, i) => (
+            <div key={i} className={cn("flex gap-2 max-w-[85%]", msg.role === "user" ? "ml-auto flex-row-reverse" : "")}>
+              <div className={cn("h-6 w-6 shrink-0 rounded-full flex items-center justify-center text-xs", 
+                msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+              )}>
+                {msg.role === "user" ? <User className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
+              </div>
+              <div className={cn("rounded-2xl px-3 py-2 text-sm whitespace-pre-line", 
+                msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+              )}>
+                {msg.content.replace(/\*/g, '')}
+              </div>
+            </div>
+          ))}
+          {isTyping && (
+            <div className="flex gap-2 max-w-[85%]">
+              <div className="h-6 w-6 shrink-0 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
+                <Bot className="h-3 w-3" />
+              </div>
+              <div className="rounded-2xl px-3 py-2 text-sm bg-muted text-foreground flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input */}
+        <form onSubmit={handleSend} className="p-3 border-t border-border flex gap-2">
+          <Input 
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask a safety question..."
+            className="flex-1 rounded-full"
+            disabled={isTyping}
+          />
+          <Button
+            type="submit"
+            size="icon"
+            className="rounded-full shrink-0"
+            disabled={!input.trim() || isTyping}
+            loading={isTyping}
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </form>
+      </div>
+    </>
+  );
+}

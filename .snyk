@@ -1,0 +1,58 @@
+# Snyk configuration for Public Safety Campaign Management System
+# This file configures Snyk security scanning for the project
+
+version: v1.0.0
+
+# Project settings
+project:
+  name: public-campaign-management
+  organization: barangay-178
+
+# Severity threshold for vulnerabilities
+severity: high
+
+# Language-specific settings
+languages:
+  - javascript
+  - php
+
+# Exclude patterns
+exclude:
+  - node_modules/
+  - vendor/
+  - storage/
+  - bootstrap/cache/
+  - public/build/
+  - public/hot/
+
+# Monitoring settings
+monitor:
+  # Enable dependency monitoring
+  dependency-monitoring: true
+  
+  # Enable license compliance checks
+  license-check: true
+  
+  # Allow licenses
+  allowed-licenses:
+    - MIT
+    - Apache-2.0
+    - BSD-2-Clause
+    - BSD-3-Clause
+    - ISC
+  
+  # Disallow licenses
+  disallowed-licenses:
+    - GPL-2.0
+    - GPL-3.0
+
+# Reporting
+report:
+  # Enable HTML reports
+  html: true
+  
+  # Enable JSON reports
+  json: true
+  
+  # Output directory
+  output-dir: .snyk-reports
