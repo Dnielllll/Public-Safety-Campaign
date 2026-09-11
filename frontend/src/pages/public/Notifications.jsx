@@ -5,8 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabaseHelpers } from "@/lib/supabase.js";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 export default function Notifications() {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,6 +25,20 @@ export default function Notifications() {
       setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
     } catch {
       setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
+    }
+  };
+
+  const handleNotificationClick = (notification) => {
+    // Mark as read
+    markRead(notification.id);
+    
+    // Redirect based on notification type
+    if (notification.type === 'campaign' && notification.campaignId) {
+      navigate(`/campaigns/${notification.campaignId}`);
+    } else if (notification.type === 'emergency') {
+      navigate('/emergency');
+    } else if (notification.link) {
+      navigate(notification.link);
     }
   };
 
@@ -59,7 +75,7 @@ export default function Notifications() {
             <Card
               key={n.id}
               className={cn("transition-colors cursor-pointer hover:shadow-sm", !n.read && "border-primary/40 bg-primary/3")}
-              onClick={() => !n.read && markRead(n.id)}
+              onClick={() => handleNotificationClick(n)}
             >
               <CardContent className="p-4 flex gap-3">
                 <div className={`mt-0.5 shrink-0 ${color}`}>
@@ -90,8 +106,8 @@ export default function Notifications() {
 }
 
 const mockNotifications = [
-  { id: 1, type: "emergency", title: "Flood Advisory", message: "Heavy rainfall expected. Residents near creek areas should prepare for possible evacuation.", time: "10 minutes ago", read: false },
-  { id: 2, type: "campaign", title: "New Campaign: Fire Safety Reminders", message: "A new fire safety campaign has been published for Barangay 178 residents.", time: "2 hours ago", read: false },
-  { id: 3, type: "reminder", title: "Dengue Prevention Reminder", message: "Clean your surroundings and eliminate stagnant water to prevent dengue.", time: "Yesterday, 3:00 PM", read: true },
-  { id: 4, type: "campaign", title: "Anti-Drug Awareness Program", message: "Join the community anti-drug awareness program this Saturday at the barangay hall.", time: "2 days ago", read: true },
+  { id: 1, type: "emergency", title: "Flood Advisory", message: "Heavy rainfall expected. Residents near creek areas should prepare for possible evacuation.", time: "10 minutes ago", read: false, link: "/emergency" },
+  { id: 2, type: "campaign", title: "New Campaign: Fire Safety Reminders", message: "A new fire safety campaign has been published for Barangay 178 residents.", time: "2 hours ago", read: false, campaignId: "fire-safety-2024" },
+  { id: 3, type: "reminder", title: "Dengue Prevention Reminder", message: "Clean your surroundings and eliminate stagnant water to prevent dengue.", time: "Yesterday, 3:00 PM", read: true, link: "/campaigns" },
+  { id: 4, type: "campaign", title: "Anti-Drug Awareness Program", message: "Join the community anti-drug awareness program this Saturday at the barangay hall.", time: "2 days ago", read: true, campaignId: "anti-drug-2024" },
 ];

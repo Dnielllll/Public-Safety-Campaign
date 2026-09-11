@@ -1,17 +1,23 @@
 import React, { useState, useEffect, useRef } from "react";
-import { MessageSquare, X, Send, Bot, User } from "lucide-react";
+import { MessageSquare, X, Send, Bot, User, Settings, Brain, Upload, Save, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { generateAIResponse } from "@/lib/ai.js";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase.js";
 
 export default function AIChatbot() {
   const [isOpen, setIsOpen] = useState(false);
+  const [showTraining, setShowTraining] = useState(false);
   const [messages, setMessages] = useState([
     { role: "assistant", content: "Hello! I am your Barangay 178 AI Safety Assistant. How can I help you prepare or stay safe today?" }
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [trainingData, setTrainingData] = useState({ question: "", answer: "" });
+  const [trainingLoading, setTrainingLoading] = useState(false);
+  const [trainingSuccess, setTrainingSuccess] = useState("");
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -59,6 +65,39 @@ export default function AIChatbot() {
     }
   };
 
+  const handleTrainingSubmit = async (e) => {
+    e.preventDefault();
+    setTrainingLoading(true);
+    setTrainingSuccess("");
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const { error } = await supabase.from('chatbot_training').insert({
+        question: trainingData.question,
+        answer: trainingData.answer,
+        created_by: user?.id,
+        created_at: new Date().toISOString()
+      });
+
+      if (error) throw error;
+
+      setTrainingSuccess("✅ Training data added successfully!");
+      setTrainingData({ question: "", answer: "" });
+      
+      // Close training panel after successful submission
+      setTimeout(() => {
+        setShowTraining(false);
+        setTrainingSuccess("");
+      }, 2000);
+    } catch (error) {
+      console.error("Training error:", error);
+      setTrainingSuccess("⚠️ Failed to add training data. Please try again.");
+    } finally {
+      setTrainingLoading(false);
+    }
+  };
+
   return (
     <>
       {/* Floating Button */}
@@ -90,15 +129,72 @@ export default function AIChatbot() {
               <p className="text-xs text-muted-foreground">Powered by Gemini AI</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsOpen(false)}
-            className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-            aria-label="Close chatbot"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setShowTraining(!showTraining)}
+              className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+              aria-label="Training settings"
+              title="Train AI"
+            >
+              <Brain className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+              aria-label="Close chatbot"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
+
+        {/* Training Panel */}
+        {showTraining && (
+          <div className="border-b border-border bg-blue-50 p-4 space-y-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Brain className="h-4 w-4 text-blue-600" />
+              <h4 className="text-sm font-semibold text-blue-900">Train AI Assistant</h4>
+            </div>
+            <form onSubmit={handleTrainingSubmit} className="space-y-2">
+              <div>
+                <label className="text-xs font-medium text-blue-800 block mb-1">Question</label>
+                <Input
+                  value={trainingData.question}
+                  onChange={(e) => setTrainingData({ ...trainingData, question: e.target.value })}
+                  placeholder="Enter a question users might ask..."
+                  className="text-sm h-8"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-blue-800 block mb-1">Answer</label>
+                <Textarea
+                  value={trainingData.answer}
+                  onChange={(e) => setTrainingData({ ...trainingData, answer: e.target.value })}
+                  placeholder="Enter the ideal answer..."
+                  className="text-sm h-16 resize-none"
+                  required
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={trainingLoading || !trainingData.question || !trainingData.answer}
+                  className="text-xs h-7"
+                >
+                  {trainingLoading ? <RefreshCw className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+                  {trainingLoading ? "Saving..." : "Save Training Data"}
+                </Button>
+                {trainingSuccess && (
+                  <span className="text-xs text-green-700">{trainingSuccess}</span>
+                )}
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">

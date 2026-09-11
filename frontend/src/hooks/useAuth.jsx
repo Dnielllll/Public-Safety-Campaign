@@ -217,6 +217,25 @@ export function AuthProvider({ children }) {
         throw new Error("Your account has been deactivated. Please contact the administrator.");
       }
 
+      // Log login event to audit trail
+      try {
+        await supabase.from('audit_trail').insert({
+          actor: profile.name || profile.email,
+          action: 'user.login',
+          entity: 'System Login',
+          user_id: profile.id,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            email: profile.email,
+            role: profile.role,
+            ip_address: 'N/A' // In production, get actual IP
+          }
+        });
+      } catch (auditError) {
+        console.error("Failed to log login event:", auditError);
+        // Don't block login if audit logging fails
+      }
+
       setUser(profile);
       return profile;
     } finally {
@@ -226,6 +245,27 @@ export function AuthProvider({ children }) {
 
   // Logout using Supabase Auth
   const logout = async () => {
+    // Log logout event to audit trail before signing out
+    if (user) {
+      try {
+        await supabase.from('audit_trail').insert({
+          actor: user.name || user.email,
+          action: 'user.logout',
+          entity: 'System Logout',
+          user_id: user.id,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            email: user.email,
+            role: user.role,
+            ip_address: 'N/A' // In production, get actual IP
+          }
+        });
+      } catch (auditError) {
+        console.error("Failed to log logout event:", auditError);
+        // Don't block logout if audit logging fails
+      }
+    }
+
     await supabaseHelpers.signOut();
     if (!localStorage.getItem("logout_message")) {
       localStorage.setItem("logged_out", "true");

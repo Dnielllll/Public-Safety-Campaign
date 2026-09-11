@@ -24,6 +24,9 @@ export default function Login() {
   const [otpExpiry, setOtpExpiry] = useState(null);
   const [otpTimer, setOtpTimer] = useState(120);
   const [isAdminLogin, setIsAdminLogin] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
 
   React.useEffect(() => {
     const logoutMsg = localStorage.getItem("logout_message");
@@ -256,6 +259,49 @@ export default function Login() {
     navigate(pendingDest, { replace: true });
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccessMsg("");
+    setResetLoading(true);
+
+    try {
+      // Generate reset token (simplified - in production, use proper backend)
+      const resetToken = Math.random().toString(36).substring(2, 15);
+      const resetLink = `${window.location.origin}/reset-password?token=${resetToken}`;
+      
+      // Store token temporarily (in production, store in database)
+      localStorage.setItem(`reset_token_${resetEmail}`, JSON.stringify({ 
+        token: resetToken, 
+        expiry: new Date(Date.now() + 30 * 60 * 1000).toISOString() 
+      }));
+
+      // Send reset email via EmailJS
+      const templateParams = {
+        to_email: resetEmail,
+        to_name: resetEmail.split('@')[0],
+        reset_link: resetLink,
+        expiry_minutes: 30,
+        logo_url: 'https://i.imgur.com/bphZEMi.png',
+      };
+
+      await emailjs.send(
+        import.meta.env.VITE_EMAILJS_SERVICE_ID,
+        import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+        templateParams,
+        import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+      );
+
+      setSuccessMsg("Password reset link sent to your email. Valid for 30 minutes.");
+      setShowForgotPassword(false);
+      setResetEmail("");
+    } catch (err) {
+      setError("Failed to send reset email. Please check your email address or try again.");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex bg-barangay">
       {loggingIn && <LoginOverlay userName={loggedInUser?.name} onDone={doNavigate} />}
@@ -299,14 +345,47 @@ export default function Login() {
 
           <Card>
             <CardHeader>
-              <CardTitle>{showOTP ? "Enter OTP" : "Log in"}</CardTitle>
+              <CardTitle>{showForgotPassword ? "Reset Password" : (showOTP ? "Enter OTP" : "Log in")}</CardTitle>
               <CardDescription>
-                {showOTP ? `Enter the 6-digit code sent to your email. Expires in ${Math.floor(otpTimer / 60)}:${(otpTimer % 60).toString().padStart(2, '0')}` : ""}
+                {showForgotPassword ? "Enter your email to receive a password reset link." : 
+                 (showOTP ? `Enter the 6-digit code sent to your email. Expires in ${Math.floor(otpTimer / 60)}:${(otpTimer % 60).toString().padStart(2, '0')}` : "")}
               </CardDescription>
             </CardHeader>
-            <form onSubmit={showOTP ? handleOTPSubmit : handleDirectLogin}>
+            <form onSubmit={showForgotPassword ? handleForgotPassword : (showOTP ? handleOTPSubmit : handleDirectLogin)}>
               <CardContent className="space-y-4">
-                {!showOTP && (
+                {showForgotPassword ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="reset-email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="reset-email"
+                          type="email"
+                          required
+                          placeholder="you@example.com"
+                          value={resetEmail}
+                          onChange={(e) => setResetEmail(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowForgotPassword(false);
+                        setResetEmail("");
+                        setError("");
+                      }}
+                      className="w-full"
+                    >
+                      Back to login
+                    </Button>
+                  </>
+                ) : !showOTP && (
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
@@ -415,17 +494,28 @@ export default function Login() {
                 )}
               </CardContent>
               <CardFooter className="flex flex-col gap-3">
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Processing…" : showOTP ? "Verify & Sign in" : "Sign in"}
+                <Button type="submit" className="w-full" disabled={loading || resetLoading}>
+                  {resetLoading ? "Sending…" : (loading ? "Processing…" : (showForgotPassword ? "Send Reset Link" : (showOTP ? "Verify & Sign in" : "Sign in")))}
                 </Button>
 
-                {!showOTP && (
-                  <p className="text-xs text-muted-foreground text-center w-full">
-                    New resident?{" "}
-                    <Link to="/register" className="text-primary font-medium hover:underline">
-                      Create a resident account
-                    </Link>
-                  </p>
+                {!showForgotPassword && !showOTP && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowForgotPassword(true)}
+                      className="w-full"
+                    >
+                      Forgot password?
+                    </Button>
+                    <p className="text-xs text-muted-foreground text-center w-full">
+                      New resident?{" "}
+                      <Link to="/register" className="text-primary font-medium hover:underline">
+                        Create a resident account
+                      </Link>
+                    </p>
+                  </>
                 )}
               </CardFooter>
             </form>

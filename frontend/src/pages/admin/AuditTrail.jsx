@@ -1,10 +1,14 @@
-import React, { useState } from "react";
-import { History, Search, User, Megaphone, CheckSquare, Settings } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { History, Search, User, Megaphone, CheckSquare, Settings, Loader2, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabase.js";
 
 const actionIcon = {
+  "user.login": User,
+  "user.logout": User,
   "user.": User,
   "campaign.": Megaphone,
   "approval.": CheckSquare,
@@ -46,8 +50,6 @@ const generateLogs = () => {
   ];
 };
 
-const logs = generateLogs();
-
 function iconFor(action) {
   const key = Object.keys(actionIcon).find((k) => action.startsWith(k));
   return actionIcon[key] || History;
@@ -55,6 +57,43 @@ function iconFor(action) {
 
 export default function AuditTrail() {
   const [query, setQuery] = useState("");
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchAuditLogs();
+  }, []);
+
+  const fetchAuditLogs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('audit_trail')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      // Format the data for display
+      const formattedLogs = data.map(log => ({
+        id: log.id,
+        actor: log.actor,
+        action: log.action,
+        entity: log.entity,
+        time: new Date(log.timestamp).toLocaleString(),
+        metadata: log.metadata
+      }));
+
+      setLogs(formattedLogs);
+    } catch (error) {
+      console.error("Error fetching audit logs:", error);
+      // Fall back to mock data if database fetch fails
+      setLogs(generateLogs());
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filtered = logs.filter(
     (l) => l.actor.toLowerCase().includes(query.toLowerCase()) || l.action.includes(query.toLowerCase()) || l.entity.toLowerCase().includes(query.toLowerCase())
   );
@@ -68,12 +107,23 @@ export default function AuditTrail() {
         <p className="text-muted-foreground text-sm">All user activities — logins, campaign changes, approvals, and reports.</p>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Search logs…" className="pl-9" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <div className="flex items-center justify-between">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search logs…" className="pl-9" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
+        <Button variant="outline" size="sm" onClick={fetchAuditLogs} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
-      <Card>
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <Card>
         <CardContent className="p-0">
           <table className="w-full text-sm">
             <thead>
@@ -104,6 +154,7 @@ export default function AuditTrail() {
           </table>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }
