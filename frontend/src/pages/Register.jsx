@@ -145,7 +145,9 @@ export default function Register() {
 
       // Send welcome email via notification-service
       try {
+        console.log('Sending welcome email to:', form.email, 'for user:', form.name.trim());
         await notificationApi.sendWelcome({ email: form.email, name: form.name.trim() });
+        console.log('Welcome email sent successfully');
       } catch (mailErr) {
         // Don't block registration if email fails — just log it
         console.warn('Welcome email failed to send:', mailErr.message);

@@ -39,13 +39,13 @@ export default function AdminManagement() {
     phone: '',
     address: '',
     role: 'admin',
+    password: '',
     allowed_modules: [],
   });
 
   useEffect(() => {
     fetchAdmins();
-    // Temporarily disabled realtime subscription to avoid conflicts
-    // setupRealtimeSubscription();
+    setupRealtimeSubscription();
   }, []);
 
   const setupRealtimeSubscription = () => {
@@ -99,13 +99,19 @@ export default function AdminManagement() {
 
   const handleAddAdmin = async () => {
     try {
+      // Validate that password is provided
+      if (!newAdmin.password) {
+        alert('Please enter a password for the admin.');
+        return;
+      }
+      
       // Try to use the RPC function first, fall back to direct auth signup
       let userId;
       
       try {
         const { data, error } = await supabase.rpc('create_user_by_admin', {
           p_email: newAdmin.email,
-          p_password: 'temporaryPassword123', // In production, generate and send via email
+          p_password: newAdmin.password,
           p_name: newAdmin.name,
           p_role: newAdmin.role,
           p_phone: newAdmin.phone,
@@ -120,7 +126,7 @@ export default function AdminManagement() {
         // Fallback: Create user via auth then update public.users table
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: newAdmin.email,
-          password: 'temporaryPassword123',
+          password: newAdmin.password,
           options: {
             data: {
               name: newAdmin.name,
@@ -156,9 +162,9 @@ export default function AdminManagement() {
       }
       
       setShowAddDialog(false);
-      setNewAdmin({ name: '', email: '', phone: '', address: '', role: 'admin', allowed_modules: [] });
+      setNewAdmin({ name: '', email: '', phone: '', address: '', role: 'admin', password: '', allowed_modules: [] });
       await fetchAdmins();
-      alert('Admin added successfully! Temporary password: temporaryPassword123');
+      alert('Admin added successfully!');
     } catch (error) {
       console.error('Error adding admin:', error);
       alert('Error adding admin: ' + error.message);
@@ -292,6 +298,20 @@ export default function AdminManagement() {
                     onChange={(e) => setNewAdmin({ ...newAdmin, address: e.target.value })}
                     placeholder="Enter address"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>Password *</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="password"
+                      value={newAdmin.password}
+                      onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })}
+                      placeholder="Enter password"
+                      className="pl-10"
+                      required
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Role</Label>

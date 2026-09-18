@@ -43,8 +43,7 @@ export default function UserManagement() {
 
   useEffect(() => {
     fetchUsers();
-    // Temporarily disabled realtime subscription to avoid conflicts
-    // setupRealtimeSubscription();
+    setupRealtimeSubscription();
   }, []);
 
   const setupRealtimeSubscription = () => {

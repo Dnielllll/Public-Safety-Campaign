@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Search, Filter, Volume2, ArrowRight, Megaphone, Image as ImageIcon, Video, Trash2, Square } from "lucide-react";
+import { Search, Filter, Volume2, ArrowRight, Megaphone, Image as ImageIcon, Video, Square } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

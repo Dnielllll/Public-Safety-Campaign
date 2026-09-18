@@ -90,37 +90,77 @@ router.post('/send-welcome', async (req, res) => {
         await transporter.sendMail({
             from: `"Barangay 178 System" <${smtpUser}>`,
             to: email,
-            subject: 'Welcome to Barangay 178 — Please Verify Your Account',
+            subject: 'Welcome to Barangay 178 — Your Account is Ready!',
             html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e5e7eb; border-radius: 12px; background: #fff;">
-                    <div style="text-align: center; margin-bottom: 24px;">
-                        <h2 style="color: #ea580c; font-size: 22px; margin: 0;">Welcome to Barangay 178!</h2>
-                        <p style="color: #6b7280; font-size: 13px; margin: 4px 0 0;">Safety Campaign Management System</p>
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Welcome to Barangay 178</title>
+                </head>
+                <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f8f9fa;">
+                    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                        <!-- Header Section -->
+                        <div style="background: linear-gradient(135deg, #ea580c 0%, #f97316 100%); padding: 30px; text-align: center;">
+                            <h1 style="color: #ffffff; font-size: 24px; margin: 0; font-weight: bold;">Welcome to Barangay 178!</h1>
+                            <p style="color: #fff7ed; font-size: 14px; margin: 8px 0 0;">Safety Campaign Management System</p>
+                        </div>
+                        
+                        <!-- Main Content -->
+                        <div style="padding: 24px;">
+                            <p style="color: #111827; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
+                                Hello, <strong>${name}</strong>!
+                            </p>
+                            <p style="color: #374151; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
+                                Your resident account has been successfully created. You are now part of the Barangay 178 community in Camarin, North Caloocan City.
+                            </p>
+
+                            <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                                <p style="color: #15803d; font-size: 14px; margin: 0; font-weight: bold;">✅ Account Created Successfully</p>
+                            </div>
+
+                            <p style="color: #374151; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
+                                You will be able to access:
+                            </p>
+                            <ul style="color: #374151; font-size: 14px; line-height: 1.8; margin: 0 0 16px;">
+                                <li>📢 Receive safety campaign announcements</li>
+                                <li>🚨 Get emergency alerts via SMS</li>
+                                <li>🔊 Access AI voice announcements</li>
+                                <li>🗺️ View community updates</li>
+                                <li>🤝 Submit feedback and concerns</li>
+                            </ul>
+
+                            <!-- Call to Action -->
+                            <div style="text-align: center; margin: 32px 0;">
+                                <a href="http://localhost:5173/login" style="display: inline-block; background-color: #ea580c; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px;">
+                                    Log In to Your Account
+                                </a>
+                            </div>
+
+                            <!-- Important Notice -->
+                            <div style="background-color: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                                <p style="color: #92400e; font-size: 13px; margin: 0;">
+                                    <strong>📌 Important:</strong> Your account is ready to use. Simply log in with your email and password to access all features.
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <!-- Footer -->
+                        <div style="background-color: #f8f9fa; padding: 24px; text-align: center; border-top: 1px solid #e5e7eb;">
+                            <p style="color: #6b7280; font-size: 12px; margin: 0 0 8px;">
+                                © ${new Date().getFullYear()} Barangay 178 Administration
+                            </p>
+                            <p style="color: #9ca3af; font-size: 11px; margin: 0;">
+                                Camarin, North Caloocan City
+                            </p>
+                            <p style="color: #9ca3af; font-size: 11px; margin: 8px 0 0;">
+                                If you did not create this account, please ignore this email.
+                            </p>
+                        </div>
                     </div>
-
-                    <p style="color: #111827; font-size: 15px;">Hello, <strong>${name}</strong>!</p>
-                    <p style="color: #374151; font-size: 14px;">
-                        Your resident account has been successfully created. You are now part of the Barangay 178 community.
-                    </p>
-
-                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 8px; margin: 20px 0;">
-                        <p style="color: #15803d; font-size: 14px; margin: 0; font-weight: bold;">✅ Account Created Successfully</p>
-                    </div>
-
-                    <p style="color: #374151; font-size: 14px;">You will be able to access:</p>
-                    <ul style="color: #374151; font-size: 14px; line-height: 1.8;">
-                        <li>📢 Receive safety campaign announcements</li>
-                        <li>🚨 Get emergency alerts via SMS</li>
-                        <li>🔊 Access AI voice announcements</li>
-                        <li>🗺️ View community updates</li>
-                    </ul>
-
-                    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-                    <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-                        © ${new Date().getFullYear()} Barangay 178 Administration · Camarin, North Caloocan City<br>
-                        If you did not create this account, please ignore this email.
-                    </p>
-                </div>
+                </body>
+                </html>
             `
         });
 
