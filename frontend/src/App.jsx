@@ -34,6 +34,8 @@ import Distribution from "@/pages/admin/Distribution";
 import NotificationManagement from "@/pages/admin/NotificationManagement";
 import FeedbackManagement from "@/pages/admin/FeedbackManagement";
 import AnalyticsReports from "@/pages/admin/AnalyticsReports";
+import AdminReports from "@/pages/admin/Reports";
+import SuperAdminReports from "@/pages/admin/SuperAdminReports";
 import ProcessMonitoring from "@/pages/admin/ProcessMonitoring";
 import AuditTrail from "@/pages/admin/AuditTrail";
 import SystemSettings from "@/pages/admin/SystemSettings";
@@ -125,6 +127,7 @@ export default function App() {
         <Route path="system-optimization" element={<SystemOptimization />} />
         <Route path="monitoring" element={<ProcessMonitoring />} />
         <Route path="analytics" element={<AnalyticsReports />} />
+        <Route path="reports" element={<SuperAdminReports />} />
         <Route path="users" element={<UserManagement />} />
         <Route path="settings" element={<SystemSettings />} />
       </Route>
@@ -147,7 +150,8 @@ export default function App() {
         <Route path="distribution" element={<Distribution />} />
         <Route path="notifications" element={<NotificationManagement />} />
         <Route path="feedback" element={<FeedbackManagement />} />
-        <Route path="reports" element={<AnalyticsReports />} />
+        <Route path="reports" element={<AdminReports />} />
+        <Route path="analytics" element={<AnalyticsReports />} />
         <Route path="process-monitoring" element={<ProcessMonitoring />} />
         <Route path="audit-trail" element={<AuditTrail />} />
         <Route path="settings" element={<SystemSettings />} />

@@ -64,7 +64,8 @@ const superAdminNavGroups = [
     items: [
       { to: "/super-admin/system-optimization", label: "System Optimization", icon: Activity },
       { to: "/super-admin/monitoring", label: "Monitoring", icon: Activity },
-      { to: "/super-admin/analytics", label: "Analytics & Reports", icon: BarChart3 },
+      { to: "/super-admin/reports", label: "Reports", icon: BarChart3 },
+      { to: "/super-admin/analytics", label: "Analytics", icon: BarChart3 },
     ],
   },
   {
