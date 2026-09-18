@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Users, Download, Plus, RefreshCw, Search, Filter, MoreVertical, Edit, Trash2, Mail, Shield, CheckCircle, XCircle, Clock, Loader2, Ban, UserCheck, Calendar, Lock } from "lucide-react";
+import { Users, Download, Plus, RefreshCw, Search, Filter, MoreVertical, Edit, Trash2, Mail, Shield, CheckCircle, XCircle, Clock, Loader2, Ban, Calendar, Lock, Eye, EyeOff } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase, supabaseHelpers, supabaseAdmin } from "@/lib/supabase";
@@ -32,9 +32,7 @@ export default function UserManagement() {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState('');
   const [showExportDialog, setShowExportDialog] = useState(false);
-  const [showOrphanedUsers, setShowOrphanedUsers] = useState(false);
-  const [orphanedUsers, setOrphanedUsers] = useState([]);
-  const [loadingOrphaned, setLoadingOrphaned] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // New user form state
   const [newUser, setNewUser] = useState({
@@ -270,78 +268,6 @@ export default function UserManagement() {
     }
   };
 
-  const handleFindOrphanedUsers = async () => {
-    setLoadingOrphaned(true);
-    try {
-      // Get all users from public.users
-      const { data: publicUsers, error: publicError } = await supabase
-        .from('users')
-        .select('id, email');
-
-      if (publicError) throw publicError;
-
-      // Get all auth users using service role client
-      if (supabaseAdmin) {
-        const { data: { users: authUsers }, error: authError } = await supabaseAdmin.auth.admin.listUsers();
-        
-        if (authError) throw authError;
-
-        // Find orphaned users (in auth but not in public.users)
-        const publicUserIds = new Set(publicUsers.map(u => u.id));
-        const orphaned = authUsers.filter(authUser => !publicUserIds.has(authUser.id));
-
-        setOrphanedUsers(orphaned);
-        setShowOrphanedUsers(true);
-      } else {
-        alert('Service role key not configured. Cannot access auth users.');
-      }
-    } catch (error) {
-      console.error('Error finding orphaned users:', error);
-      alert('Error finding orphaned users: ' + error.message);
-    } finally {
-      setLoadingOrphaned(false);
-    }
-  };
-
-  const handleDeleteOrphanedUser = async (authUserId, email) => {
-    if (!confirm(`Are you sure you want to delete orphaned auth user ${email}? This action cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      if (supabaseAdmin) {
-        // First, delete any audit trail records for this user
-        try {
-          const { error: auditError } = await supabase
-            .from('audit_trail')
-            .delete()
-            .eq('user_id', authUserId);
-          
-          if (auditError) {
-            console.warn('Error deleting audit trail records for orphaned user:', auditError);
-            // Continue anyway - orphaned users might not have audit records
-          }
-        } catch (auditError) {
-          console.warn('Audit trail cleanup failed for orphaned user:', auditError);
-        }
-
-        // Then delete the auth user
-        const { error } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
-        
-        if (error) throw error;
-
-        alert('Orphaned auth user deleted successfully');
-        // Refresh the orphaned users list
-        handleFindOrphanedUsers();
-      } else {
-        alert('Service role key not configured.');
-      }
-    } catch (error) {
-      console.error('Error deleting orphaned user:', error);
-      alert('Error deleting orphaned user: ' + error.message);
-    }
-  };
-
   const handleToggleUserSelection = (userId) => {
     const newSelection = new Set(selectedUsers);
     if (newSelection.has(userId)) {
@@ -452,11 +378,10 @@ export default function UserManagement() {
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button variant="outline" onClick={handleFindOrphanedUsers} disabled={loadingOrphaned}>
-            <UserCheck className="h-4 w-4 mr-2" />
-            {loadingOrphaned ? 'Scanning...' : 'Find Orphaned Users'}
-          </Button>
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <Dialog open={showAddDialog} onOpenChange={(open) => {
+            setShowAddDialog(open);
+            if (!open) setShowPassword(false);
+          }}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
@@ -506,13 +431,20 @@ export default function UserManagement() {
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       value={newUser.password}
                       onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                       placeholder="Enter password"
-                      className="pl-10"
+                      className="pl-10 pr-10"
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -530,6 +462,7 @@ export default function UserManagement() {
               <DialogFooter>
                 <Button variant="outline" onClick={() => {
                   setNewUser({ name: '', email: '', phone: '', address: '', role: 'staff', password: '' });
+                  setShowPassword(false);
                   setShowAddDialog(false);
                 }}>Cancel</Button>
                 <Button onClick={handleAddUser}>Add User</Button>
@@ -836,83 +769,6 @@ export default function UserManagement() {
         onConfirm={handleExportUsers}
         title="Export Users"
       />
-
-      {/* Orphaned Users Dialog */}
-      <Dialog open={showOrphanedUsers} onOpenChange={setShowOrphanedUsers}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Orphaned Auth Users</DialogTitle>
-            <DialogDescription>
-              These users exist in Supabase Authentication but not in your user management. 
-              They can be safely deleted to clean up your authentication system.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {orphanedUsers.length === 0 ? (
-            <div className="text-center py-8">
-              <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-4" />
-              <p className="text-muted-foreground">No orphaned users found. Your authentication system is clean!</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Found {orphanedUsers.length} orphaned user(s) in authentication:
-              </p>
-              
-              <div className="border rounded-lg">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Created At</TableHead>
-                      <TableHead>Last Sign In</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {orphanedUsers.map((authUser) => (
-                      <TableRow key={authUser.id}>
-                        <TableCell className="font-medium">{authUser.email}</TableCell>
-                        <TableCell>
-                          {new Date(authUser.created_at).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          {authUser.last_sign_in_at 
-                            ? new Date(authUser.last_sign_in_at).toLocaleDateString()
-                            : 'Never'}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleDeleteOrphanedUser(authUser.id, authUser.email)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-sm text-yellow-800">
-                  <strong>Warning:</strong> These users are not associated with any accounts in your system. 
-                  Deleting them will remove their authentication records but won't affect any active users.
-                </p>
-              </div>
-            </div>
-          )}
-          
-          <DialogFooter>
-            <Button onClick={() => setShowOrphanedUsers(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

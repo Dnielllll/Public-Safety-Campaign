@@ -160,11 +160,11 @@ export default function Login() {
       console.log("User role detected:", userData.role);
       console.log("Role requires OTP check:", userData.role === 'public' || userData.role === 'citizen' || userData.role === 'staff');
 
-      // Check if user was recently verified within 3 minutes (bypass OTP)
+      // Check if user was recently verified within 3 minutes (bypass OTP) - applies to staff and residents
       const recentVerification = localStorage.getItem(`otp_verified_at_${form.email}`);
       const isWithin3Minutes = recentVerification && (Date.now() - parseInt(recentVerification)) < 3 * 60 * 1000;
 
-      // Require OTP for residents (public/citizen) and staff, unless recently verified
+      // Require OTP for residents (public/citizen) and staff, unless recently verified within 3 minutes
       if ((userData.role === 'public' || userData.role === 'citizen' || userData.role === 'staff') && !isWithin3Minutes) {
         console.log("=== Sending OTP ===");
         // Generate OTP
@@ -207,7 +207,7 @@ export default function Login() {
         setSuccessMsg("OTP sent to your email. Valid for 3 minutes.");
         console.log("=== OTP sent successfully ===");
       } else {
-        // Skip OTP for admins or recently verified users (within 3 minutes)
+        // Skip OTP for admins or recently verified users (within 3 minutes) - includes staff and residents
         if (isWithin3Minutes) {
           console.log("=== Bypassing OTP - recently verified within 3 minutes ===");
           const elapsed = Date.now() - parseInt(recentVerification);
