@@ -398,11 +398,9 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    // Clean up any lingering strict-mode channels first
-    const existingChannel = supabase.getChannels().find(c => c.topic === 'realtime:staff_presence');
-    if (existingChannel) {
-      supabase.removeChannel(existingChannel);
-    }
+    // Clean up any existing channels with the same name to prevent duplicates
+    const existingChannels = supabase.getChannels().filter(c => c.topic === 'realtime:staff_presence');
+    existingChannels.forEach(c => supabase.removeChannel(c));
 
     const channel = supabase.channel('staff_presence', {
       config: {
@@ -431,6 +429,8 @@ export function AuthProvider({ children }) {
             name: user.name,
             online_at: new Date().toISOString(),
           });
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Presence channel error');
         }
       });
 

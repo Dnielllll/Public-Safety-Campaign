@@ -50,31 +50,7 @@ export default function UserManagement() {
 
   useEffect(() => {
     fetchUsers();
-    setupRealtimeSubscription();
   }, []);
-
-  const setupRealtimeSubscription = () => {
-    const channel = supabase
-      .channel('user-management-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setUsers(prev => [payload.new, ...prev]);
-        } else if (payload.eventType === 'UPDATE') {
-          setUsers(prev => prev.map(user => user.id === payload.new.id ? payload.new : user));
-        } else if (payload.eventType === 'DELETE') {
-          setUsers(prev => prev.filter(user => user.id !== payload.old.id));
-        }
-      })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Subscribed to user management changes');
-        }
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  };
 
   const fetchUsers = async () => {
     try {

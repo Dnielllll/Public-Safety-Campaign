@@ -52,33 +52,7 @@ export default function AdminManagement() {
 
   useEffect(() => {
     fetchAdmins();
-    setupRealtimeSubscription();
   }, []);
-
-  const setupRealtimeSubscription = () => {
-    const channel = supabase
-      .channel('admin-management-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
-        if (payload.new && (payload.new.role === 'admin' || payload.new.role === 'super_admin')) {
-          if (payload.eventType === 'INSERT') {
-            setAdmins(prev => [payload.new, ...prev]);
-          } else if (payload.eventType === 'UPDATE') {
-            setAdmins(prev => prev.map(admin => admin.id === payload.new.id ? payload.new : admin));
-          } else if (payload.eventType === 'DELETE') {
-            setAdmins(prev => prev.filter(admin => admin.id !== payload.old.id));
-          }
-        }
-      })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Subscribed to admin management changes');
-        }
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  };
 
   const fetchAdmins = async () => {
     try {
