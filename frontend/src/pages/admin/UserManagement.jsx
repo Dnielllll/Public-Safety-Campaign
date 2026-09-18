@@ -310,6 +310,22 @@ export default function UserManagement() {
 
     try {
       if (supabaseAdmin) {
+        // First, delete any audit trail records for this user
+        try {
+          const { error: auditError } = await supabase
+            .from('audit_trail')
+            .delete()
+            .eq('user_id', authUserId);
+          
+          if (auditError) {
+            console.warn('Error deleting audit trail records for orphaned user:', auditError);
+            // Continue anyway - orphaned users might not have audit records
+          }
+        } catch (auditError) {
+          console.warn('Audit trail cleanup failed for orphaned user:', auditError);
+        }
+
+        // Then delete the auth user
         const { error } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
         
         if (error) throw error;
