@@ -39,10 +39,24 @@ export default function Login() {
       setIsSessionTimeout(true); // Mark as session timeout
       // Clear form fields on session timeout
       setForm({ email: "", password: "", otp: "" });
+      
+      // Show additional session timeout information
+      setSuccessMsg("Session Timeout: Your previous session has expired due to inactivity. Please log in again to continue.");
     } else if (localStorage.getItem("logged_out") === "true") {
       setSuccessMsg("Logged out successfully.");
       localStorage.removeItem("logged_out");
+      // Clear form fields on logout to prevent auto-fill
+      setForm({ email: "", password: "", otp: "" });
     }
+    
+    // Always clear form fields on component mount to prevent saved credentials
+    setForm({ email: "", password: "", otp: "" });
+    
+    // Clear browser autocomplete on mount
+    const emailInput = document.querySelector('input[type="email"]');
+    const passwordInput = document.querySelector('input[type="password"]');
+    if (emailInput) emailInput.value = '';
+    if (passwordInput) passwordInput.value = '';
   }, []);
 
   // Check for recent OTP verification when email changes
@@ -138,7 +152,7 @@ export default function Login() {
 
       if (userError || !userData) {
         console.log("User not found or error occurred");
-        setError("User not found. Please check your email or register as a resident.");
+        setError("User not found");
         setLoading(false);
         return;
       }
@@ -450,7 +464,7 @@ export default function Login() {
                           placeholder="you@example.com"
                           value={resetEmail}
                           onChange={(e) => setResetEmail(e.target.value)}
-                          autoComplete={isSessionTimeout ? "off" : "email"}
+                          autoComplete="off"
                           className="pl-10"
                         />
                       </div>
@@ -483,7 +497,7 @@ export default function Login() {
                           placeholder="you@example.com"
                           value={form.email}
                           onChange={(e) => setForm({ ...form, email: e.target.value })}
-                          autoComplete={isSessionTimeout ? "off" : "email"}
+                          autoComplete="off"
                           className="pl-10"
                         />
                       </div>
@@ -500,7 +514,7 @@ export default function Login() {
                           placeholder="••••••••"
                           value={form.password}
                           onChange={(e) => setForm({ ...form, password: e.target.value })}
-                          autoComplete={isSessionTimeout ? "off" : "new-password"}
+                          autoComplete="off"
                           className="pl-10"
                         />
                       </div>
@@ -522,6 +536,7 @@ export default function Login() {
                           maxLength={6}
                           value={form.otp}
                           onChange={(e) => setForm({ ...form, otp: e.target.value.replace(/\D/g, '') })}
+                          autoComplete="off"
                           className="pl-10 text-center text-2xl tracking-widest"
                         />
                       </div>
@@ -576,6 +591,12 @@ export default function Login() {
                   <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
                     {successMsg}
                   </p>
+                )}
+                {isSessionTimeout && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-md px-3 py-2">
+                    <p className="text-sm text-orange-800 font-medium">⏰ Session Timeout Notice</p>
+                    <p className="text-xs text-orange-700 mt-1">Your previous session expired due to inactivity. Please log in again to continue.</p>
+                  </div>
                 )}
               </CardContent>
               <CardFooter className="flex flex-col gap-3">

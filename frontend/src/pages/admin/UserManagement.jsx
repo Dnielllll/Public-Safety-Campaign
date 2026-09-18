@@ -9,10 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { supabase } from "@/lib/supabase";
+import { supabase, supabaseHelpers } from "@/lib/supabase";
 import ExportPasswordDialog from "@/components/ExportPasswordDialog";
-import { useAutoSave } from "@/hooks/useAutoSave.js";
-import AutoSaveIndicator from "@/components/AutoSaveIndicator.jsx";
+import { logAuditEvent } from "@/lib/auditLogger.js";
 
 import { useAuth } from "@/hooks/useAuth";
 
@@ -27,26 +26,22 @@ export default function UserManagement() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
-  const { onlineUsers } = useAuth();
+  const { onlineUsers, user } = useAuth();
   const [selectedUsers, setSelectedUsers] = useState(new Set());
   const [showBulkActions, setShowBulkActions] = useState(false);
-  const [showExportDialog, setShowExportDialog] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState('');
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
-  // Auto-save for new user form
-  const [newUser, setNewUser, isUserFormSaved, clearUserFormSave] = useAutoSave(
-    'new_user_draft',
-    {
-      name: '',
-      email: '',
-      phone: '',
-      address: '',
-      role: 'staff',
-      password: '',
-    },
-    4000 // Save every 4 seconds
-  );
+  // New user form state
+  const [newUser, setNewUser] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    role: 'staff',
+    password: '',
+  });
 
   useEffect(() => {
     fetchUsers();
@@ -97,11 +92,21 @@ export default function UserManagement() {
 
       if (error) throw error;
       
+      // Log user creation event
+      try {
+        await logAuditEvent('user.created', 'User Management', user.id, {
+          target_user_id: data,
+          email: newUser.email,
+          role: newUser.role
+        });
+      } catch (auditError) {
+        console.error('Failed to log user creation:', auditError);
+      }
+      
       setShowAddDialog(false);
       setGeneratedPassword(newUser.password);
       setShowPasswordDialog(true);
       setNewUser({ name: '', email: '', phone: '', address: '', role: 'staff', password: '' });
-      clearUserFormSave(); // Clear auto-save data after successful submission
       await fetchUsers();
     } catch (error) {
       console.error('Error adding user:', error);
@@ -124,6 +129,17 @@ export default function UserManagement() {
 
       if (error) throw error;
       
+      // Log user update event
+      try {
+        await logAuditEvent('user.updated', 'User Management', user.id, {
+          target_user_id: selectedUser.id,
+          email: selectedUser.email,
+          role: selectedUser.role
+        });
+      } catch (auditError) {
+        console.error('Failed to log user update:', auditError);
+      }
+      
       setShowEditDialog(false);
       setSelectedUser(null);
       await fetchUsers();
@@ -141,27 +157,40 @@ export default function UserManagement() {
     }
 
     try {
-      console.log('Calling delete_user_by_admin RPC for user:', userId);
+      // Get user info before deletion for audit logging
+      const { data: userInfo } = await supabase
+        .from('users')
+        .select('email, role, name')
+        .eq('id', userId)
+        .single();
       
-      // Try to use RPC function first
-      const { error: rpcError } = await supabase.rpc('delete_user_by_admin', {
-        p_user_id: userId
-      });
+      console.log('Calling complete user deletion for:', userId);
+      
+      // Use the new complete deletion function
+      const { error, warning } = await supabaseHelpers.deleteUserCompletely(userId);
 
-      if (rpcError) {
-        console.warn('RPC function failed, falling back to direct delete:', rpcError);
-        // Fallback: Direct delete from public.users (auth.users cleanup handled separately)
-        const { error: deleteError } = await supabase
-          .from('users')
-          .delete()
-          .eq('id', userId);
+      if (error) {
+        console.error('User deletion failed:', error);
+        throw error;
+      }
 
-        if (deleteError) throw deleteError;
-        
-        alert('User deleted from database. Note: Auth user may need manual cleanup.');
+      if (warning) {
+        console.warn('Deletion completed with warning:', warning);
+        alert(`User deleted from database. Warning: ${warning}`);
       } else {
-        console.log('User deleted successfully via RPC');
+        console.log('User deleted completely (database + auth)');
         alert('User deleted successfully');
+      }
+      
+      // Log user deletion event
+      try {
+        await logAuditEvent('user.deleted', 'User Management', user.id, {
+          target_user_id: userId,
+          email: userInfo?.email,
+          role: userInfo?.role
+        });
+      } catch (auditError) {
+        console.error('Failed to log user deletion:', auditError);
       }
       
       await fetchUsers();
@@ -175,14 +204,18 @@ export default function UserManagement() {
     if (!confirm(`Are you sure you want to delete ${selectedUsers.size} users? This action cannot be undone.`)) return;
 
     try {
-      // Delete each user using the RPC function
+      // Get user info before deletion for audit logging
       const userIds = Array.from(selectedUsers);
+      const { data: usersInfo } = await supabase
+        .from('users')
+        .select('id, email, role')
+        .in('id', userIds);
+      
+      // Delete each user using the complete deletion function
       let failedCount = 0;
       
       for (const userId of userIds) {
-        const { error } = await supabase.rpc('delete_user_by_admin', {
-          p_user_id: userId
-        });
+        const { error } = await supabaseHelpers.deleteUserCompletely(userId);
         if (error) {
           console.error('Error deleting user:', userId, error);
           failedCount++;
@@ -191,6 +224,21 @@ export default function UserManagement() {
 
       if (failedCount > 0) {
         alert(`Successfully deleted ${userIds.length - failedCount} users. ${failedCount} users failed to delete.`);
+      }
+      
+      // Log bulk user deletion event
+      try {
+        await logAuditEvent('user.deleted', 'User Management', user.id, {
+          bulk_operation: true,
+          affected_users: userIds.length,
+          user_details: usersInfo?.map(u => ({
+            id: u.id,
+            email: u.email,
+            role: u.role
+          }))
+        });
+      } catch (auditError) {
+        console.error('Failed to log bulk user deletion:', auditError);
       }
       
       setSelectedUsers(new Set());
@@ -338,10 +386,7 @@ export default function UserManagement() {
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
-                <div className="flex items-center justify-between">
-                  <DialogTitle>Add New User</DialogTitle>
-                  <AutoSaveIndicator isSaved={isUserFormSaved} />
-                </div>
+                <DialogTitle>Add New User</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -406,7 +451,6 @@ export default function UserManagement() {
               <DialogFooter>
                 <Button variant="outline" onClick={() => {
                   setNewUser({ name: '', email: '', phone: '', address: '', role: 'staff', password: '' });
-                  clearUserFormSave();
                   setShowAddDialog(false);
                 }}>Cancel</Button>
                 <Button onClick={handleAddUser}>Add User</Button>
@@ -668,12 +712,6 @@ export default function UserManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <ExportPasswordDialog
-        open={showExportDialog}
-        onClose={() => setShowExportDialog(false)}
-        onConfirm={handleExportUsers}
-        title="Export Users"
-      />
       
       {/* Password Dialog */}
       <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
@@ -712,6 +750,13 @@ export default function UserManagement() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ExportPasswordDialog
+        open={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        onConfirm={handleExportUsers}
+        title="Export Users"
+      />
     </div>
   );
 }

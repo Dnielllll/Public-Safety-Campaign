@@ -592,13 +592,39 @@ export function AuthProvider({ children }) {
     }
 
     await supabaseHelpers.signOut();
-    if (!localStorage.getItem("logout_message")) {
-      localStorage.setItem("logged_out", "true");
+    
+    // Clear all authentication-related localStorage items
+    const keysToRemove = [
+      "logged_out",
+      "logout_message",
+      "auth_settings",
+      "maintenance_mode",
+      "maintenance_message",
+      // Clear all OTP-related data
+      ...Object.keys(localStorage).filter(key => key.startsWith('otp_')),
+      ...Object.keys(localStorage).filter(key => key.startsWith('otp_verified_at_')),
+      // Clear any auto-saved form data
+      ...Object.keys(localStorage).filter(key => key.includes('draft') || key.includes('form')),
+    ];
+    
+    keysToRemove.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+      } catch (e) {
+        console.warn(`Failed to remove ${key}:`, e);
+      }
+    });
+
+    // Clear session storage
+    try {
+      sessionStorage.clear();
+    } catch (e) {
+      console.warn("Failed to clear session storage:", e);
     }
+
     // Force light mode on logout so public view is always light
     localStorage.setItem("vite-ui-theme", "light");
-    // Keep OTP verification timestamp for 3-minute bypass on re-login
-    // The timestamp is already stored as otp_verified_at_{email} and will be used on next login
+    
     const root = window.document.documentElement;
     root.classList.remove("dark");
     root.classList.add("light");
