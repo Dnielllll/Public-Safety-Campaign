@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [addUserLoading, setAddUserLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -40,7 +41,7 @@ export default function UserManagement() {
     email: '',
     phone: '',
     address: '',
-    role: 'staff',
+    role: 'admin',
     password: '',
   });
 
@@ -81,37 +82,133 @@ export default function UserManagement() {
         return;
       }
       
-      // Use the RPC to securely create the user server-side without disrupting the current admin session
-      const { data, error } = await supabase.rpc('create_user_by_admin', {
-        p_email: newUser.email,
-        p_password: newUser.password,
-        p_name: newUser.name,
-        p_role: newUser.role,
-        p_phone: newUser.phone,
-        p_address: newUser.address
-      });
-
-      if (error) throw error;
-      
-      // Log user creation event
-      try {
-        await logAuditEvent('user.created', 'User Management', user.id, {
-          target_user_id: data,
-          email: newUser.email,
-          role: newUser.role
-        });
-      } catch (auditError) {
-        console.error('Failed to log user creation:', auditError);
+      if (!newUser.email || !newUser.name) {
+        alert('Please enter email and name for the user.');
+        return;
       }
+
+      setAddUserLoading(true);
       
-      setShowAddDialog(false);
-      setGeneratedPassword(newUser.password);
-      setShowPasswordDialog(true);
-      setNewUser({ name: '', email: '', phone: '', address: '', role: 'staff', password: '' });
-      await fetchUsers();
+      // Check if user already exists in public.users
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('id, email')
+        .eq('email', newUser.email)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Error checking existing user:', checkError);
+      }
+
+      if (existingUser) {
+        alert('User with this email already exists in the system.');
+        setAddUserLoading(false);
+        return;
+      }
+
+      // Check if email exists in auth.users by attempting to sign up
+      // If it fails with "already registered", we know the auth user exists
+      let authUserId = null;
+      let authUserExists = false;
+
+      try {
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: newUser.email,
+          password: newUser.password,
+          options: {
+            data: {
+              name: newUser.name,
+              role: newUser.role,
+              phone: newUser.phone,
+              address: newUser.address
+            }
+          }
+        });
+
+        if (authError) {
+          if (authError.message.includes('already registered') || authError.message.includes('already been registered')) {
+            console.log('Auth user already exists, need to find their ID');
+            authUserExists = true;
+          } else {
+            throw authError;
+          }
+        } else if (authData?.user) {
+          authUserId = authData.user.id;
+          console.log('Auth user created successfully with ID:', authUserId);
+        }
+      } catch (authAttemptError) {
+        console.error('Auth attempt error:', authAttemptError);
+        if (authAttemptError.message.includes('already registered')) {
+          authUserExists = true;
+        } else {
+          throw authAttemptError;
+        }
+      }
+
+      // If auth user exists but we don't have their ID, we need to handle this differently
+      if (authUserExists && !authUserId) {
+        alert('User already exists in Supabase Auth but the profile is missing. This needs to be resolved manually. Please delete the user from Supabase Auth first, then try again.');
+        setAddUserLoading(false);
+        return;
+      }
+
+      // If we have an auth user ID, create the public profile
+      if (authUserId) {
+        const { error: profileError } = await supabase
+          .from('users')
+          .insert({
+            id: authUserId,
+            email: newUser.email,
+            name: newUser.name,
+            role: newUser.role,
+            phone: newUser.phone,
+            address: newUser.address,
+            is_active: true
+          });
+
+        if (profileError) {
+          console.error('Profile error:', profileError);
+          
+          // If profile creation fails due to duplicate key, the user profile already exists
+          if (profileError.message.includes('duplicate key') || profileError.code === '23505') {
+            alert('User profile already exists in the database. The user may already be in the system.');
+            setAddUserLoading(false);
+            return;
+          }
+          
+          // If profile creation fails for other reasons, try to clean up the auth user
+          try {
+            await supabase.auth.admin.deleteUser(authUserId);
+            console.log('Cleaned up auth user due to profile creation failure');
+          } catch (cleanupError) {
+            console.error('Failed to clean up auth user:', cleanupError);
+          }
+          
+          throw profileError;
+        }
+        
+        // Log user creation event
+        try {
+          await logAuditEvent('user.created', 'User Management', user.id, {
+            target_user_id: authUserId,
+            email: newUser.email,
+            role: newUser.role
+          });
+        } catch (auditError) {
+          console.error('Failed to log user creation:', auditError);
+        }
+        
+        setShowAddDialog(false);
+        setGeneratedPassword(newUser.password);
+        setShowPasswordDialog(true);
+        setNewUser({ name: '', email: '', phone: '', address: '', role: 'admin', password: '' });
+        await fetchUsers();
+      }
     } catch (error) {
       console.error('Error adding user:', error);
       alert('Error adding user: ' + error.message);
+    } finally {
+      setAddUserLoading(false);
     }
   };
 
@@ -454,6 +551,7 @@ export default function UserManagement() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="staff">Staff</SelectItem>
                     </SelectContent>
                   </Select>
@@ -461,11 +559,13 @@ export default function UserManagement() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => {
-                  setNewUser({ name: '', email: '', phone: '', address: '', role: 'staff', password: '' });
+                  setNewUser({ name: '', email: '', phone: '', address: '', role: 'admin', password: '' });
                   setShowPassword(false);
                   setShowAddDialog(false);
                 }}>Cancel</Button>
-                <Button onClick={handleAddUser}>Add User</Button>
+                <Button onClick={handleAddUser} disabled={addUserLoading}>
+                  {addUserLoading ? 'Adding...' : 'Add User'}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Mail, Lock, Key } from "lucide-react";
+import { Mail, Lock, Key, Eye, EyeOff } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,8 @@ export default function Login() {
   const [isSessionTimeout, setIsSessionTimeout] = useState(false);
   const [showOtpBypassNotice, setShowOtpBypassNotice] = useState(false);
   const [bypassTimeRemaining, setBypassTimeRemaining] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showOtpPassword, setShowOtpPassword] = useState(false);
 
   React.useEffect(() => {
     const logoutMsg = localStorage.getItem("logout_message");
@@ -39,6 +41,8 @@ export default function Login() {
       setIsSessionTimeout(true); // Mark as session timeout
       // Clear form fields on session timeout
       setForm({ email: "", password: "", otp: "" });
+      setShowPassword(false);
+      setShowOtpPassword(false);
       
       // Show additional session timeout information
       setSuccessMsg("Session Timeout: Your previous session has expired due to inactivity. Please log in again to continue.");
@@ -47,10 +51,14 @@ export default function Login() {
       localStorage.removeItem("logged_out");
       // Clear form fields on logout to prevent auto-fill
       setForm({ email: "", password: "", otp: "" });
+      setShowPassword(false);
+      setShowOtpPassword(false);
     }
     
     // Always clear form fields on component mount to prevent saved credentials
     setForm({ email: "", password: "", otp: "" });
+    setShowPassword(false);
+    setShowOtpPassword(false);
     
     // Clear browser autocomplete on mount
     const emailInput = document.querySelector('input[type="email"]');
@@ -509,14 +517,21 @@ export default function Login() {
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
                           id={isSessionTimeout ? "password-timeout" : "password"}
-                          type="password"
+                          type={showPassword ? "text" : "password"}
                           required
                           placeholder="••••••••"
                           value={form.password}
                           onChange={(e) => setForm({ ...form, password: e.target.value })}
                           autoComplete="off"
-                          className="pl-10"
+                          className="pl-10 pr-10"
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
                       </div>
                     </div>
                   </>
@@ -548,14 +563,21 @@ export default function Login() {
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
                           id={isSessionTimeout ? "password-timeout-otp" : "password"}
-                          type="password"
+                          type={showOtpPassword ? "text" : "password"}
                           required
                           placeholder="••••••••"
                           value={form.password}
                           onChange={(e) => setForm({ ...form, password: e.target.value })}
                           autoComplete={isSessionTimeout ? "off" : "new-password"}
-                          className="pl-10"
+                          className="pl-10 pr-10"
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowOtpPassword(!showOtpPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showOtpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
                       </div>
                     </div>
 
@@ -565,6 +587,7 @@ export default function Login() {
                       size="sm"
                       onClick={() => {
                         setShowOTP(false);
+                        setShowOtpPassword(false);
                         setForm({ ...form, otp: "" });
                         setError("");
                       }}
