@@ -243,7 +243,7 @@ export default function AdminManagement() {
                 Add Admin
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <div className="flex items-center justify-between">
                   <DialogTitle>Add New Admin</DialogTitle>
@@ -538,7 +538,7 @@ export default function AdminManagement() {
 
       {/* Edit Admin Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Admin</DialogTitle>
           </DialogHeader>
