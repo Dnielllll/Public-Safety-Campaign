@@ -120,6 +120,24 @@ export const supabaseHelpers = {
 
       let authCleanupWarning = null;
 
+      // Delete audit trail records first (to handle foreign key constraints)
+      try {
+        const { error: auditError } = await supabase
+          .from('audit_trail')
+          .delete()
+          .eq('user_id', id);
+        
+        if (auditError) {
+          console.warn('Error deleting audit trail records:', auditError);
+          // Continue anyway - some users might not have audit records
+        } else {
+          console.log('Successfully deleted audit trail records');
+        }
+      } catch (auditError) {
+        console.warn('Audit trail cleanup failed:', auditError);
+        // Continue anyway
+      }
+
       // Try to delete from auth.users using service role client
       if (supabaseAdmin && userData?.email) {
         try {
