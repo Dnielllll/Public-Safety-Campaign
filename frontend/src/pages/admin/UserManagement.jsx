@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { supabase, supabaseHelpers, supabaseAdmin } from "@/lib/supabase";
+import { supabase, supabaseHelpers } from "@/lib/supabase";
 import ExportPasswordDialog from "@/components/ExportPasswordDialog";
 import { logAuditEvent } from "@/lib/auditLogger.js";
 
