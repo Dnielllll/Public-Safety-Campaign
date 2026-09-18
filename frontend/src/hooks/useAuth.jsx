@@ -509,7 +509,8 @@ export function AuthProvider({ children }) {
             }
           } catch (rpcError) {
             console.error('Failed to track login attempts (RPC function may not exist):', rpcError);
-            // Fall through to standard error message if tracking fails
+            // If RPC function doesn't exist, just show standard error message
+            // This allows login to work even if the tracking functions aren't set up
           }
         }
 
@@ -537,7 +538,8 @@ export function AuthProvider({ children }) {
       try {
         await supabase.rpc('reset_login_attempts', { user_id: profile.id });
       } catch (resetError) {
-        console.error('Failed to reset login attempts:', resetError);
+        console.warn('Failed to reset login attempts (RPC function may not exist):', resetError);
+        // Don't block login if reset function doesn't exist
       }
 
       // Log login event to audit trail
