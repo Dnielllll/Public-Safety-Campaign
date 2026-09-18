@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\ContentController;
 use App\Http\Controllers\Api\WorkflowController;
+use App\Http\Controllers\Api\AIController;
 
 /*
 |--------------------------------------------------------------------------
@@ -36,6 +37,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // Content routes
     Route::apiResource('contents', ContentController::class);
     Route::get('/campaigns/{campaignId}/contents', [ContentController::class, 'index']);
+
+    // AI routes
+    Route::post('/ai/text-to-speech', [AIController::class, 'textToSpeech']);
+    Route::post('/ai/generate-text', [AIController::class, 'generateText']);
+    Route::post('/ai/rewrite', [AIController::class, 'rewrite']);
 });
 
 // Public SMS distribution route (for testing - add auth in production)

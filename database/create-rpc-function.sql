@@ -8,6 +8,9 @@
 -- Step 0: Enable pgcrypto extension (required for crypt() and gen_salt())
 CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA extensions;
 
+-- Drop any existing conflicting functions with this exact signature
+DROP FUNCTION IF EXISTS public.create_user_by_admin(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION public.create_user_by_admin(
   p_email    TEXT,
   p_password TEXT,
@@ -101,6 +104,6 @@ END;
 $$;
 
 -- Grant execute permission to authenticated users (RLS inside function handles admin check)
-GRANT EXECUTE ON FUNCTION public.create_user_by_admin TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_user_by_admin(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
 
 SELECT 'RPC function create_user_by_admin created successfully!' AS status;

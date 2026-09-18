@@ -9,15 +9,11 @@ import { supabase } from "@/lib/supabase.js";
 
 export default function AIChatbot() {
   const [isOpen, setIsOpen] = useState(false);
-  const [showTraining, setShowTraining] = useState(false);
   const [messages, setMessages] = useState([
-    { role: "assistant", content: "Hello! I am your Barangay 178 AI Safety Assistant. How can I help you prepare or stay safe today?" }
+    { role: "assistant", content: "Hello! I am your Barangay 178 Assistant. How can I help you prepare or stay safe today?" }
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [trainingData, setTrainingData] = useState({ question: "", answer: "" });
-  const [trainingLoading, setTrainingLoading] = useState(false);
-  const [trainingSuccess, setTrainingSuccess] = useState("");
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -42,7 +38,7 @@ export default function AIChatbot() {
       const prompt = `${history}\nuser: ${userMsg.content}`;
       
       const response = await generateAIResponse(
-        "You are a helpful, brief, and accurate safety assistant for the Barangay 178 Public Safety Campaign System. FAST FACTS: The current Punong Barangay (Barangay Captain) of Barangay 178 in Caloocan City is Editha Labasbas. STRICT RULES: 1) You may ONLY answer questions related to the Public Safety Campaign system and basic Barangay 178 official info (safety tips, emergency procedures, submitting feedback/complaints, navigating the system, barangay officials). 2) If a user asks an unrelated question (e.g., math, general trivia, '1+1') or attempts a personal/casual conversation (e.g., 'I love you'), you MUST politely refuse and say: 'I'm sorry, but I can only assist with questions related to the Public Safety Campaign system and Barangay 178.' 3) If a user simply greets you ('Hi', 'Hello'), respond normally, introduce yourself as the Public Safety Campaign Assistant, and offer help. 4) If they ask how to submit concerns, complaints, feedback, or suggestions, you MUST tell them: 'Please sign up or log in to your Resident account, then go to the Feedback section to submit your concern.' Keep answers under 3 short paragraphs.",
+        "You are a helpful, brief, and accurate safety assistant for the Barangay 178 Public Safety Campaign System. FAST FACTS: The current Punong Barangay (Barangay Captain) of Barangay 178 in Caloocan City is Editha Labasbas. ABOUT THE SYSTEM: The Barangay 178 Safety Campaign System is an online portal for residents to view public safety campaigns (fire safety, health, disaster preparedness, anti-drug, etc.), read emergency info, hear AI voice announcements of safety content, take community surveys, receive real-time notifications, and submit feedback/complaints directly to the barangay officials. It also includes an offline mode that allows residents to access previously saved campaigns even without internet. STRICT RULES: 1) You may ONLY answer questions related to the Public Safety Campaign system and basic Barangay 178 official info. 2) If a user asks an unrelated question, you MUST politely refuse and say: 'I'm sorry, but I can only assist with questions related to the Public Safety Campaign system and Barangay 178.' 3) If a user simply greets you ('Hi', 'Hello'), respond normally, introduce yourself as the Public Safety Campaign Assistant, and offer help. 4) If they ask how to submit concerns, complaints, feedback, or suggestions, you MUST tell them: 'Please sign up or log in to your Resident account, then go to the Feedback section to submit your concern.' Keep answers under 3 short paragraphs.",
         prompt
       );
       
@@ -65,46 +61,13 @@ export default function AIChatbot() {
     }
   };
 
-  const handleTrainingSubmit = async (e) => {
-    e.preventDefault();
-    setTrainingLoading(true);
-    setTrainingSuccess("");
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      const { error } = await supabase.from('chatbot_training').insert({
-        question: trainingData.question,
-        answer: trainingData.answer,
-        created_by: user?.id,
-        created_at: new Date().toISOString()
-      });
-
-      if (error) throw error;
-
-      setTrainingSuccess("✅ Training data added successfully!");
-      setTrainingData({ question: "", answer: "" });
-      
-      // Close training panel after successful submission
-      setTimeout(() => {
-        setShowTraining(false);
-        setTrainingSuccess("");
-      }, 2000);
-    } catch (error) {
-      console.error("Training error:", error);
-      setTrainingSuccess("⚠️ Failed to add training data. Please try again.");
-    } finally {
-      setTrainingLoading(false);
-    }
-  };
-
   return (
     <>
       {/* Floating Button */}
       <button
         onClick={() => setIsOpen(true)}
         className={cn(
-          "fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-all z-50",
+          "fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-all z-50 animate-bobbing",
           isOpen && "scale-0 opacity-0"
         )}
       >
@@ -114,7 +77,7 @@ export default function AIChatbot() {
       {/* Chat Window */}
       <div
         className={cn(
-          "fixed bottom-6 right-6 w-[350px] sm:w-[400px] h-[500px] bg-white rounded-2xl shadow-2xl border border-border flex flex-col transition-all z-50 origin-bottom-right duration-300",
+          "fixed bottom-6 right-6 w-[350px] sm:w-[400px] h-[600px] max-h-[85vh] bg-white rounded-2xl shadow-2xl border border-border flex flex-col transition-all z-50 origin-bottom-right duration-300",
           isOpen ? "scale-100 opacity-100" : "scale-50 opacity-0 pointer-events-none"
         )}
       >
@@ -125,20 +88,11 @@ export default function AIChatbot() {
               <Bot className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-sm">AI Safety Assistant</h3>
-              <p className="text-xs text-muted-foreground">Powered by Gemini AI</p>
+              <h3 className="font-semibold text-sm">Barangay 178 Assistant</h3>
+              <p className="text-xs text-muted-foreground">Public Safety Campaign</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setShowTraining(!showTraining)}
-              className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-              aria-label="Training settings"
-              title="Train AI"
-            >
-              <Brain className="h-4 w-4" />
-            </button>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
@@ -149,52 +103,6 @@ export default function AIChatbot() {
             </button>
           </div>
         </div>
-
-        {/* Training Panel */}
-        {showTraining && (
-          <div className="border-b border-border bg-blue-50 p-4 space-y-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Brain className="h-4 w-4 text-blue-600" />
-              <h4 className="text-sm font-semibold text-blue-900">Train AI Assistant</h4>
-            </div>
-            <form onSubmit={handleTrainingSubmit} className="space-y-2">
-              <div>
-                <label className="text-xs font-medium text-blue-800 block mb-1">Question</label>
-                <Input
-                  value={trainingData.question}
-                  onChange={(e) => setTrainingData({ ...trainingData, question: e.target.value })}
-                  placeholder="Enter a question users might ask..."
-                  className="text-sm h-8"
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-blue-800 block mb-1">Answer</label>
-                <Textarea
-                  value={trainingData.answer}
-                  onChange={(e) => setTrainingData({ ...trainingData, answer: e.target.value })}
-                  placeholder="Enter the ideal answer..."
-                  className="text-sm h-16 resize-none"
-                  required
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={trainingLoading || !trainingData.question || !trainingData.answer}
-                  className="text-xs h-7"
-                >
-                  {trainingLoading ? <RefreshCw className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
-                  {trainingLoading ? "Saving..." : "Save Training Data"}
-                </Button>
-                {trainingSuccess && (
-                  <span className="text-xs text-green-700">{trainingSuccess}</span>
-                )}
-              </div>
-            </form>
-          </div>
-        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">

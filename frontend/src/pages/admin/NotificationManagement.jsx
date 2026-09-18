@@ -23,6 +23,7 @@ export default function NotificationManagement() {
   const [open,      setOpen]      = useState(false);
   const [sending,   setSending]   = useState(false);
   const [loading,   setLoading]   = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [form,      setForm]      = useState({ campaign: "", channel: "sms" });
 
   useEffect(() => {
@@ -39,7 +40,17 @@ export default function NotificationManagement() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setCampaigns(data || []);
+      
+      // Remove duplicates based on title, keeping the most recent one
+      const uniqueCampaigns = (data || []).reduce((acc, campaign) => {
+        const existingIndex = acc.findIndex(c => c.title === campaign.title);
+        if (existingIndex === -1) {
+          acc.push(campaign);
+        }
+        return acc;
+      }, []);
+      
+      setCampaigns(uniqueCampaigns);
     } catch (err) {
       console.error("Error fetching campaigns:", err);
     }
@@ -73,6 +84,12 @@ export default function NotificationManagement() {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchCampaigns(), fetchNotifications()]);
+    setRefreshing(false);
+  };
+
   const handleSend = async () => {
     if (!form.campaign) {
       alert("Please select a campaign");
@@ -81,29 +98,51 @@ export default function NotificationManagement() {
 
     setSending(true);
     try {
-      const selectedCampaign = campaigns.find((c) => c.title === form.campaign);
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
+      if (!currentUser || !currentUser.id) {
+        throw new Error("User not authenticated. Please log in again.");
+      }
+      
+      const selectedCampaign = campaigns.find((c) => c.id === form.campaign);
       if (!selectedCampaign) throw new Error("Campaign not found");
 
-      // 1. Fetch all active residents and staff as recipients
+      // 1. Fetch all active residents as recipients (excluding staff and current user)
       const { data: recipients, error: recipientsError } = await supabase
         .from("users")
         .select("id, email, phone, name")
-        .in("role", ["citizen", "public", "staff"])
+        .in("role", ["citizen", "public"])
         .eq("is_active", true);
 
       if (recipientsError) throw recipientsError;
-      if (!recipients || recipients.length === 0) {
-        alert("No registered residents found to notify.");
+      
+      console.log("Current user ID:", currentUser?.id);
+      console.log("Current user email:", currentUser?.email);
+      console.log("All recipients before filtering:", recipients);
+      
+      // Filter out current user using both ID and email for robustness
+      // Also filter out known problematic email addresses (full inboxes, etc.)
+      const problematicEmails = ['superadmin@gmail.com', 'superadmin178@gmail.com']; // Add emails with known delivery issues
+      const filteredRecipients = recipients?.filter(r => 
+        r.id !== currentUser?.id && 
+        r.email !== currentUser?.email &&
+        !problematicEmails.includes(r.email)
+      ) || [];
+      
+      console.log("Recipients after filtering:", filteredRecipients);
+      
+      if (filteredRecipients.length === 0) {
+        alert("No valid recipients found. All users may be filtered out or have delivery issues.");
         setSending(false);
         return;
       }
 
-      const recipientCount = recipients.length;
+      const recipientCount = filteredRecipients.length;
       const campaignMsg = `Barangay 178 Alert: ${selectedCampaign.title} — Stay safe and informed. Visit our portal for details.`;
 
       // 2. Dispatch via selected channel
       if (form.channel === "sms") {
-        const phoneNumbers = recipients.map((r) => r.phone).filter(Boolean);
+        const phoneNumbers = filteredRecipients.map((r) => r.phone).filter(Boolean);
         if (phoneNumbers.length === 0) {
           alert("No residents have phone numbers registered.");
           setSending(false);
@@ -121,27 +160,48 @@ export default function NotificationManagement() {
         }
 
       } else if (form.channel === "email") {
-        const emails = recipients.map((r) => r.email).filter(Boolean);
+        const emails = filteredRecipients.map((r) => r.email).filter(Boolean);
         if (emails.length === 0) {
           alert("No residents have emails registered.");
           setSending(false);
           return;
         }
         try {
-          await notificationApi.sendCampaignEmail({
+          const emailResult = await notificationApi.sendCampaignEmail({
             emails,
             campaign_title:   selectedCampaign.title,
             campaign_message: campaignMsg,
           });
+          
+          // Check for bounced emails and provide feedback
+          if (emailResult.failed > 0) {
+            console.warn(`Email delivery: ${emailResult.sent} successful, ${emailResult.failed} failed`);
+            if (emailResult.details?.failures) {
+              const bouncedEmails = emailResult.details.failures.map(f => f.email).join(', ');
+              console.warn('Bounced emails:', bouncedEmails);
+              
+              // Show warning to user about bounced emails
+              const inboxesFull = emailResult.details.failures.some(f => 
+                f.error?.toLowerCase().includes('inbox') || 
+                f.error?.toLowerCase().includes('storage') ||
+                f.error?.toLowerCase().includes('over quota')
+              );
+              
+              if (inboxesFull) {
+                alert(`⚠️ Some recipients have full inboxes: ${bouncedEmails}\n\n${emailResult.sent} emails were sent successfully, but ${emailResult.failed} failed due to inbox storage issues.`);
+              } else {
+                alert(`⚠️ Some emails failed to deliver: ${bouncedEmails}\n\n${emailResult.sent} emails were sent successfully, but ${emailResult.failed} failed.`);
+              }
+            }
+          }
         } catch (mailErr) {
           console.warn("Email dispatch warning:", mailErr.message);
+          alert(`Email dispatch encountered issues: ${mailErr.message}`);
         }
       }
 
-      // 3. Save notification record to Supabase
-      const { data: { user: sender } } = await supabase.auth.getUser();
+      // 3. Save notification record to Supabase (broadcast notification)
       await supabase.from("notifications").insert({
-        recipient_id: sender?.id || null,
         campaign_id:  selectedCampaign.id,
         title:        `Campaign Notification: ${selectedCampaign.title}`,
         message:      campaignMsg,
@@ -191,8 +251,8 @@ export default function NotificationManagement() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchNotifications} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
           </Button>
 
@@ -215,7 +275,7 @@ export default function NotificationManagement() {
                     </SelectTrigger>
                     <SelectContent>
                       {campaigns.map((c) => (
-                        <SelectItem key={c.id} value={c.title}>{c.title}</SelectItem>
+                        <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

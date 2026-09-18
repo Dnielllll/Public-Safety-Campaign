@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   Database,
   ShieldAlert,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth.jsx";
@@ -44,19 +45,32 @@ const superAdminNavGroups = [
   {
     title: "User Management",
     items: [
+      { to: "/super-admin/users", label: "User Management", icon: Users },
       { to: "/super-admin/admins", label: "Admin Management", icon: ShieldCheck },
-      { to: "/super-admin/users", label: "User Control", icon: Users },
       { to: "/super-admin/roles", label: "Role & Permission", icon: UserCheck },
     ],
   },
   {
     title: "System Control",
     items: [
-      { to: "/super-admin/database", label: "Database Management", icon: Database },
-      { to: "/super-admin/audit-trail", label: "Audit Logs", icon: History },
-      { to: "/super-admin/security", label: "Security Center", icon: ShieldAlert },
-      { to: "/super-admin/settings", label: "System Settings", icon: Settings },
+      { to: "/super-admin/system-control", label: "System Control", icon: Database },
+      { to: "/super-admin/security-audits", label: "Security & Audits", icon: ShieldAlert },
+      { to: "/super-admin/domain-hosting", label: "Domain & Hosting", icon: Globe },
+      { to: "/super-admin/backup-restore", label: "Backup & Restore", icon: Database },
+    ],
+  },
+  {
+    title: "Performance",
+    items: [
+      { to: "/super-admin/system-optimization", label: "System Optimization", icon: Activity },
       { to: "/super-admin/monitoring", label: "Monitoring", icon: Activity },
+      { to: "/super-admin/analytics", label: "Analytics & Reports", icon: BarChart3 },
+    ],
+  },
+  {
+    title: "Settings",
+    items: [
+      { to: "/super-admin/settings", label: "System Settings", icon: Settings },
     ],
   },
 ];
@@ -113,7 +127,8 @@ const staffNavGroups = [
   {
     title: "Campaigns",
     items: [
-      { to: "/staff/campaigns", label: "Campaign Management", icon: Megaphone },
+      { to: "/staff/campaigns", label: "My Campaigns", icon: Megaphone },
+      { to: "/staff/all-campaigns", label: "All Campaigns", icon: Users },
       { to: "/staff/ai-assistant", label: "AI Assistant", icon: Sparkles },
       { to: "/staff/content", label: "Content", icon: FileText },
       { to: "/staff/submission", label: "Submission", icon: CheckSquare },
@@ -195,7 +210,7 @@ export default function DashboardLayout({ role }) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState(
     role === "super_admin"
-      ? { Main: true, "User Management": true, "System Control": true, Campaigns: true, Communication: true, Analytics: true, Account: true }
+      ? { Main: true, "User Management": true, "System Control": true, Performance: true, Settings: true }
       : role === "admin"
       ? { Main: true, Campaigns: true, Communication: true, Analytics: true, System: true }
       : { Main: true, Campaigns: true, Communication: true, Reports: true, Account: true }
@@ -325,10 +340,13 @@ export default function DashboardLayout({ role }) {
               {roleLabel}
             </Badge>
             <Avatar className="h-8 w-8">
-              {user?.avatar_url && <AvatarImage src={user.avatar_url} alt={user?.name} />}
-              <AvatarFallback className={cn("text-white text-xs font-bold", roleColor)}>
-                {user?.name?.[0] ?? (role === "super_admin" ? "SA" : role === "admin" ? "A" : "S")}
-              </AvatarFallback>
+              {user?.avatar_url ? (
+                <AvatarImage src={user.avatar_url} alt={user?.name} />
+              ) : (
+                <AvatarFallback className={cn("text-white text-xs font-bold", roleColor)}>
+                  {user?.name?.[0] ?? (role === "super_admin" ? "SA" : role === "admin" ? "A" : "S")}
+                </AvatarFallback>
+              )}
             </Avatar>
             <div className="hidden sm:block leading-tight">
               <p className="text-sm font-medium">{user?.name ?? (role === "super_admin" ? "Super Admin" : role === "admin" ? "Admin User" : "Staff User")}</p>

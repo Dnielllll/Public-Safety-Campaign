@@ -19,12 +19,14 @@ const channels = [
 export default function Distribution() {
   const [campaigns, setCampaigns] = useState([]);
   const [campaign, setCampaign] = useState("");
-  const [selected, setSelected] = useState(["website", "sms"]);
+  const [selected, setSelected] = useState(["website"]);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [publishResult, setPublishResult] = useState(null);
   const [phoneNumbers, setPhoneNumbers] = useState([]);
   const [loadingPhoneNumbers, setLoadingPhoneNumbers] = useState(false);
+  const [emailAddresses, setEmailAddresses] = useState([]);
+  const [loadingEmails, setLoadingEmails] = useState(false);
 
   const toggle = (id) =>
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -36,6 +38,9 @@ export default function Distribution() {
   useEffect(() => {
     if (selected.includes("sms")) {
       fetchPhoneNumbers();
+    }
+    if (selected.includes("email")) {
+      fetchEmailAddresses();
     }
   }, [selected]);
 
@@ -56,6 +61,28 @@ export default function Distribution() {
       console.error("Error fetching phone numbers:", error);
     } finally {
       setLoadingPhoneNumbers(false);
+    }
+  };
+
+  const fetchEmailAddresses = async () => {
+    setLoadingEmails(true);
+    try {
+      // Fetch email addresses from registered users - only residents (citizen/public role)
+      const { data, error } = await supabase
+        .from('users')
+        .select('email, name, role')
+        .not('email', 'is', null)
+        .not('email', 'eq', '')
+        .in('role', ['citizen', 'public']); // Only get residents
+
+      if (error) throw error;
+      const emails = data?.map(u => ({ email: u.email, name: u.name })).filter(u => u.email) || [];
+      setEmailAddresses(emails);
+      console.log(`Fetched ${emails.length} resident email addresses`);
+    } catch (error) {
+      console.error("Error fetching email addresses:", error);
+    } finally {
+      setLoadingEmails(false);
     }
   };
 
@@ -89,47 +116,113 @@ export default function Distribution() {
     setPublishResult(null);
 
     try {
+      const selectedCampaign = campaigns.find(c => c.id.toString() === campaign);
+      const results = [];
+
       // Handle SMS distribution via notification-service (through API gateway)
       if (selected.includes("sms")) {
         if (phoneNumbers.length === 0) {
-          setPublishResult({
+          results.push({
+            channel: "SMS",
             success: false,
             message: "No resident phone numbers found. Please ensure residents have phone numbers in the system.",
           });
-          setPublishing(false);
-          return;
+        } else {
+          try {
+            const data = await notificationApi.bulkSMS({
+              phone_numbers: phoneNumbers,
+              campaign_title: selectedCampaign?.title || "",
+              campaign_description: selectedCampaign?.description || "",
+              provider: "iprog",
+            });
+            results.push({
+              channel: "SMS",
+              success: data.success ?? true,
+              message: data.accepted
+                ? `Bulk SMS queued for ${phoneNumbers.length} recipients`
+                : (data.success ? "SMS distribution completed" : "SMS distribution partially failed"),
+              details: data.distribution_result,
+            });
+          } catch (smsError) {
+            console.error("SMS API Error:", smsError);
+            results.push({
+              channel: "SMS",
+              success: false,
+              message: smsError.message || "Failed to send SMS. Check if the notification service is running.",
+            });
+          }
         }
+      }
 
-        // Get the selected campaign object
-        const selectedCampaign = campaigns.find(c => c.id.toString() === campaign);
-
-        try {
-          const data = await notificationApi.bulkSMS({
-            phone_numbers: phoneNumbers,
-            campaign_title: selectedCampaign?.title || "",
-            campaign_description: selectedCampaign?.description || "",
-            provider: "iprog",
-          });
-          setPublishResult({
-            success: data.success ?? true,
-            message: data.accepted
-              ? `Bulk SMS queued for ${phoneNumbers.length} recipients`
-              : (data.success ? "SMS distribution completed" : "SMS distribution partially failed"),
-            details: data.distribution_result,
-          });
-        } catch (smsError) {
-          console.error("SMS API Error:", smsError);
-          setPublishResult({
+      // Handle Email distribution via notification-service
+      if (selected.includes("email")) {
+        if (emailAddresses.length === 0) {
+          results.push({
+            channel: "Email",
             success: false,
-            message: smsError.message || "Failed to send SMS. Check if the notification service is running.",
+            message: "No resident email addresses found. Please ensure residents have email addresses in the system.",
           });
+        } else {
+          try {
+            console.log("Preparing to send emails to:", emailAddresses);
+            const emailList = emailAddresses.map(addr => typeof addr === 'string' ? addr : addr.email);
+            console.log("Extracted email list:", emailList);
+            
+            // Prepare email content optimized for Gmail primary inbox
+            const emailData = await notificationApi.sendCampaignEmail({
+              emails: emailList,
+              campaign_title: selectedCampaign?.title || "",
+              campaign_message: selectedCampaign?.description || "",
+              campaign_objectives: selectedCampaign?.objectives || "",
+              from_name: "Barangay 178 Safety Campaign",
+              from_email: "noreply@brgy178.gov.ph",
+              subject: `📢 ${selectedCampaign?.title || 'New Campaign'} - Barangay 178 Safety Campaign`,
+              reply_to: "info@brgy178.gov.ph",
+            });
+            console.log("Email API response:", emailData);
+            
+            results.push({
+              channel: "Email",
+              success: emailData.success ?? true,
+              message: emailData.message || `Email sent to ${emailAddresses.length} resident${emailAddresses.length !== 1 ? 's' : ''}`,
+              details: emailData.details,
+            });
+          } catch (emailError) {
+            console.error("Email API Error:", emailError);
+            results.push({
+              channel: "Email",
+              success: false,
+              message: emailError.message || "Failed to send emails. Check if the notification service is running.",
+            });
+          }
         }
-      } else {
-        setPublishResult({
+      }
+
+      // Handle other channels (website, facebook, mobile_app, voice_announcement)
+      const otherChannels = selected.filter(ch => ch !== "sms" && ch !== "email");
+      if (otherChannels.length > 0) {
+        results.push({
+          channel: otherChannels.join(", "),
           success: true,
           message: "Campaign published successfully to selected channels.",
         });
       }
+
+      // Combine results
+      const allSuccessful = results.every(r => r.success);
+      const combinedMessage = results.map(r => 
+        `${r.channel}: ${r.message}`
+      ).join("\n");
+
+      setPublishResult({
+        success: allSuccessful,
+        message: allSuccessful 
+          ? "Campaign distribution completed successfully!"
+          : "Campaign distribution completed with some errors.",
+        details: combinedMessage,
+        results: results,
+      });
+
     } catch (error) {
       console.error("Error publishing:", error);
       setPublishResult({
@@ -210,6 +303,20 @@ export default function Distribution() {
                     )}
                   </div>
                 )}
+                {ch.id === "email" && active && (
+                  <div className="text-xs text-muted-foreground">
+                    {loadingEmails ? (
+                      <span className="flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Loading email addresses...
+                      </span>
+                    ) : emailAddresses.length > 0 ? (
+                      `${emailAddresses.length} resident${emailAddresses.length !== 1 ? 's' : ''} will receive email`
+                    ) : (
+                      <span className="text-amber-600">No email addresses available</span>
+                    )}
+                  </div>
+                )}
               </button>
             );
           })}
@@ -234,12 +341,20 @@ export default function Distribution() {
                   {publishResult.message}
                 </p>
                 {publishResult.details && (
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    <p>Total: {publishResult.details.total} recipients</p>
-                    <p>Successful: {publishResult.details.success_count}</p>
-                    {publishResult.details.failure_count > 0 && (
-                      <p className="text-red-600">Failed: {publishResult.details.failure_count}</p>
-                    )}
+                  <div className="mt-2 text-xs text-muted-foreground whitespace-pre-line">
+                    {publishResult.details}
+                  </div>
+                )}
+                {publishResult.results && (
+                  <div className="mt-2 space-y-1">
+                    {publishResult.results.map((result, idx) => (
+                      <div key={idx} className="text-xs text-muted-foreground">
+                        <span className={result.success ? "text-green-600" : "text-red-600"}>
+                          {result.success ? "✓" : "✗"}
+                        </span>
+                        {" "}{result.channel}: {result.message}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

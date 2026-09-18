@@ -1,16 +1,37 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { UserCircle, Lock, Save, Eye, EyeOff, CheckCircle2, Camera, Upload, Phone, MapPin, Mail, RefreshCw } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth.jsx";
 import { supabase, supabaseHelpers } from "@/lib/supabase.js";
+import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
+
+// Helper to center the crop initially
+function centerAspectCrop(mediaWidth, mediaHeight, aspect) {
+  return centerCrop(
+    makeAspectCrop(
+      {
+        unit: '%',
+        width: 90,
+      },
+      aspect,
+      mediaWidth,
+      mediaHeight,
+    ),
+    mediaWidth,
+    mediaHeight,
+  )
+}
 
 export default function ProfilePage() {
-  const { user, setUser } = useAuth();
+  const { user, setUser, validatePassword } = useAuth();
   const fileInputRef = useRef(null);
+  const imgRef = useRef(null);
 
   const [profile, setProfile] = useState({
     name: user?.name ?? "",
@@ -27,18 +48,24 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState("");
   const [error, setError] = useState("");
 
+  // Cropper states
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [imgSrc, setImgSrc] = useState("");
+  const [crop, setCrop] = useState();
+  const [completedCrop, setCompletedCrop] = useState(null);
+
   const roleLabel = user?.role === "super_admin" ? "Super Administrator"
     : user?.role === "admin" ? "Administrator"
     : user?.role === "staff" ? "Barangay Staff"
-    : "Public Resident";
+    : "Resident";
 
   const roleColor = user?.role === "super_admin" ? "bg-purple-600"
     : user?.role === "admin" ? "bg-primary"
     : user?.role === "staff" ? "bg-accent"
     : "bg-primary";
 
-  // Handle avatar file selection
-  const handleAvatarChange = async (e) => {
+  // Handle avatar file selection (opens cropper)
+  const handleAvatarSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -52,31 +79,96 @@ export default function ProfilePage() {
       return;
     }
 
-    // Show preview immediately
-    const previewUrl = URL.createObjectURL(file);
-    setAvatarPreview(previewUrl);
     setError("");
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      setImgSrc(reader.result?.toString() || "");
+      setCropModalOpen(true);
+    });
+    reader.readAsDataURL(file);
+    
+    // Reset input so the same file can be selected again
+    e.target.value = "";
+  };
 
-    // Upload to Supabase Storage
+  const onImageLoad = (e) => {
+    const { width, height } = e.currentTarget;
+    setCrop(centerAspectCrop(width, height, 1));
+  };
+
+  // Upload the cropped image
+  const uploadCroppedImage = async () => {
+    if (!completedCrop || !imgRef.current) {
+      setCropModalOpen(false);
+      return;
+    }
+
+    setCropModalOpen(false);
     setUploadingAvatar(true);
+
     try {
-      const fileExt = file.name.split(".").pop();
+      const image = imgRef.current;
+      const canvas = document.createElement("canvas");
+      const crop = completedCrop;
+
+      const scaleX = image.naturalWidth / image.width;
+      const scaleY = image.naturalHeight / image.height;
+      const ctx = canvas.getContext("2d");
+      const pixelRatio = window.devicePixelRatio || 1;
+
+      canvas.width = Math.floor(crop.width * scaleX * pixelRatio);
+      canvas.height = Math.floor(crop.height * scaleY * pixelRatio);
+
+      ctx.scale(pixelRatio, pixelRatio);
+      ctx.imageSmoothingQuality = "high";
+
+      const cropX = crop.x * scaleX;
+      const cropY = crop.y * scaleY;
+      const cropWidth = crop.width * scaleX;
+      const cropHeight = crop.height * scaleY;
+
+      ctx.drawImage(
+        image,
+        cropX,
+        cropY,
+        cropWidth,
+        cropHeight,
+        0,
+        0,
+        cropWidth,
+        cropHeight
+      );
+
+      // Convert canvas to blob
+      const blob = await new Promise((resolve) => {
+        canvas.toBlob((b) => resolve(b), "image/jpeg", 0.95);
+      });
+
+      if (!blob) {
+        throw new Error("Canvas is empty");
+      }
+
+      // Show preview immediately
+      const previewUrl = URL.createObjectURL(blob);
+      setAvatarPreview(previewUrl);
+
+      // Upload to Supabase Storage
+      const fileExt = "jpg";
       const fileName = `${user.id}-${Date.now()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("avatars")
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, blob, { upsert: true, contentType: "image/jpeg" });
 
       if (uploadError) {
-        // If bucket doesn't exist, store as base64 data URL fallback
         console.warn("Storage upload failed (bucket may not exist), using data URL fallback:", uploadError.message);
         const reader = new FileReader();
         reader.onloadend = () => {
           setAvatarUrl(reader.result);
           setAvatarPreview(reader.result);
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(blob);
       } else {
         const { data: urlData } = supabase.storage
           .from("avatars")
@@ -85,13 +177,8 @@ export default function ProfilePage() {
         setAvatarPreview(urlData.publicUrl);
       }
     } catch (err) {
-      console.warn("Avatar upload error, using data URL:", err);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarUrl(reader.result);
-        setAvatarPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+      console.warn("Avatar crop/upload error:", err);
+      setError("Failed to crop and upload image.");
     } finally {
       setUploadingAvatar(false);
     }
@@ -110,7 +197,6 @@ export default function ProfilePage() {
         address: profile.address,
       };
 
-      // Include avatar URL if changed
       if (avatarUrl && avatarUrl !== user?.avatar_url) {
         updates.avatar_url = avatarUrl;
       }
@@ -122,7 +208,6 @@ export default function ProfilePage() {
         return;
       }
 
-      // Update auth context with new profile data
       setUser((prev) => ({
         ...prev,
         ...updates,
@@ -151,8 +236,11 @@ export default function ProfilePage() {
       setError("New passwords do not match.");
       return;
     }
-    if (passwords.new.length < 6) {
-      setError("Password must be at least 6 characters.");
+
+    // Validate password using configurable requirements
+    const passwordValidation = validatePassword(passwords.new);
+    if (!passwordValidation.isValid) {
+      setError(passwordValidation.errors.join(' '));
       return;
     }
 
@@ -190,15 +278,15 @@ export default function ProfilePage() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-5">
-            {/* Avatar with upload overlay */}
             <div className="relative group">
               <Avatar className="h-20 w-20 ring-2 ring-primary/20 ring-offset-2 ring-offset-background">
                 {avatarPreview ? (
                   <AvatarImage src={avatarPreview} alt={profile.name} />
-                ) : null}
-                <AvatarFallback className={`${roleColor} text-white text-xl font-bold`}>
-                  {profile.name?.[0]?.toUpperCase() ?? "U"}
-                </AvatarFallback>
+                ) : (
+                  <AvatarFallback className={`${roleColor} text-white text-xl font-bold`}>
+                    {profile.name?.[0]?.toUpperCase() ?? "U"}
+                  </AvatarFallback>
+                )}
               </Avatar>
               <button
                 type="button"
@@ -216,7 +304,7 @@ export default function ProfilePage() {
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                onChange={handleAvatarChange}
+                onChange={handleAvatarSelect}
                 className="hidden"
               />
             </div>
@@ -383,6 +471,42 @@ export default function ProfilePage() {
           {error}
         </div>
       )}
+
+      {/* Crop Modal */}
+      <Dialog open={cropModalOpen} onOpenChange={setCropModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Crop Profile Photo</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center p-4">
+            {imgSrc && (
+              <ReactCrop
+                crop={crop}
+                onChange={(_, percentCrop) => setCrop(percentCrop)}
+                onComplete={(c) => setCompletedCrop(c)}
+                aspect={1}
+                circularCrop
+              >
+                <img
+                  ref={imgRef}
+                  src={imgSrc}
+                  alt="Crop preview"
+                  onLoad={onImageLoad}
+                  className="max-h-[60vh] object-contain"
+                />
+              </ReactCrop>
+            )}
+          </div>
+          <DialogFooter className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setCropModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={uploadCroppedImage}>
+              Crop & Upload
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

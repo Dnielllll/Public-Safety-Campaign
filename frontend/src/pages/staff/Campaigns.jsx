@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from "react";
-import { Plus, Save, Search, Loader2, AlertTriangle, MessageSquare } from "lucide-react";
+import { Plus, Save, Search, Loader2, AlertTriangle, MessageSquare, User, Calendar, Volume2, Play, AlertCircle, Eye, X } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,8 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, Dialog
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { supabaseHelpers } from "@/lib/supabase.js";
+import { supabaseHelpers, supabase } from "@/lib/supabase.js";
+import { AIAPI } from "@/lib/api.js";
 
 const statusVariant = {
   draft: "outline",
@@ -17,6 +18,9 @@ const statusVariant = {
   published: "success",
   rejected: "destructive",
   needs_revision: "destructive",
+  active: "success",
+  completed: "secondary",
+  cancelled: "destructive",
 };
 
 const statusLabel = {
@@ -26,6 +30,9 @@ const statusLabel = {
   published: "Published",
   rejected: "Rejected",
   needs_revision: "Needs Revision",
+  active: "Active",
+  completed: "Completed",
+  cancelled: "Cancelled",
 };
 
 export default function StaffCampaigns() {
@@ -35,9 +42,22 @@ export default function StaffCampaigns() {
   const [form, setForm] = useState({ title: "", objectives: "", category: "general" });
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [voice, setVoice] = useState("fil-PH-Wavenet-A");
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [voiceError, setVoiceError] = useState(null);
+  const [viewCampaign, setViewCampaign] = useState(null);
+  const [viewOpen, setViewOpen] = useState(false);
 
   useEffect(() => {
     fetchCampaigns();
+    
+    // Load voices for browser TTS fallback
+    const loadVoices = () => {
+      window.speechSynthesis.getVoices();
+    };
+    
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
   }, []);
 
   const fetchCampaigns = async () => {
@@ -45,8 +65,28 @@ export default function StaffCampaigns() {
     try {
       const { user } = await supabaseHelpers.getAuthUser();
       if (user) {
-        const { data } = await supabaseHelpers.getCampaigns({ created_by: user.id });
-        setCampaigns(data && data.length > 0 ? data : []);
+        console.log("Current user ID:", user.id);
+        console.log("Current user email:", user.email);
+        
+        // Fetch ONLY user's own campaigns for this page
+        const { data, error } = await supabase
+          .from("campaigns")
+          .select("*, users!campaigns_created_by_fkey(name, email)")
+          .eq("created_by", user.id)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+
+        console.log("Fetched campaigns for current user:", data);
+
+        // Add creator information to each campaign
+        const campaignsWithCreators = (data || []).map(campaign => ({
+          ...campaign,
+          creatorName: campaign.users?.name || campaign.users?.email || "Unknown",
+          isCreatedByUser: campaign.created_by === user.id
+        }));
+
+        setCampaigns(campaignsWithCreators);
       }
     } catch (err) {
       console.error("Failed to fetch campaigns:", err);
@@ -74,6 +114,11 @@ export default function StaffCampaigns() {
   const handleNew = () => {
     setForm({ title: "", objectives: "", category: "general" });
     setOpen(true);
+  };
+
+  const handleViewCampaign = (campaign) => {
+    setViewCampaign(campaign);
+    setViewOpen(true);
   };
 
   const saveDraft = async () => {
@@ -114,13 +159,93 @@ export default function StaffCampaigns() {
 
   const canEdit = (status) => status === "draft" || status === "needs_revision";
 
+  const generateVoicePreview = async () => {
+    if (!form.objectives) return;
+    
+    setVoiceError(null);
+    setIsPlaying(true);
+    
+    try {
+      const { data } = await AIAPI.textToSpeech({
+        text: form.objectives,
+        voice: voice
+      });
+      
+      if (data && data.audioContent) {
+        // Convert base64 to audio and play
+        const audioSrc = `data:audio/mp3;base64,${data.audioContent}`;
+        const audio = new Audio(audioSrc);
+        
+        audio.onended = () => setIsPlaying(false);
+        audio.onerror = () => {
+          setIsPlaying(false);
+          setVoiceError('Audio playback failed. Using browser TTS fallback.');
+          fallbackToBrowserTTS();
+        };
+        
+        audio.play();
+      } else {
+        setIsPlaying(false);
+        setVoiceError('No audio content received from server. Using browser TTS fallback.');
+        fallbackToBrowserTTS();
+      }
+    } catch (error) {
+      setIsPlaying(false);
+      console.error('Failed to generate voice preview:', error);
+      setVoiceError('Google Cloud TTS unavailable. Using browser TTS fallback.');
+      // Fallback to browser TTS if Google Cloud fails
+      fallbackToBrowserTTS();
+    }
+  };
+
+  const fallbackToBrowserTTS = () => {
+    if (!form.objectives) return;
+    
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(form.objectives);
+    
+    // Set voice based on selection
+    const voices = window.speechSynthesis.getVoices();
+    let selectedVoice = null;
+    
+    if (voice === "fil-PH-Wavenet-A") {
+      // Try to find a Filipino female voice
+      selectedVoice = voices.find(v => v.lang.includes('fil') && v.name.toLowerCase().includes('female')) ||
+                     voices.find(v => v.lang.includes('fil')) ||
+                     voices.find(v => v.lang.includes('tl'));
+    } else if (voice === "fil-PH-Wavenet-B") {
+      // Try to find a Filipino male voice
+      selectedVoice = voices.find(v => v.lang.includes('fil') && v.name.toLowerCase().includes('male')) ||
+                     voices.find(v => v.lang.includes('fil')) ||
+                     voices.find(v => v.lang.includes('tl'));
+    } else {
+      // English voice
+      selectedVoice = voices.find(v => v.lang.includes('en-US'));
+    }
+    
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+    }
+    
+    utterance.rate = 0.9; // Slightly slower for better clarity
+    utterance.pitch = 1;
+    
+    utterance.onstart = () => setIsPlaying(true);
+    utterance.onend = () => setIsPlaying(false);
+    utterance.onerror = () => setIsPlaying(false);
+    
+    window.speechSynthesis.speak(utterance);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold">Campaign Management</h1>
           <p className="text-muted-foreground text-sm">
-            Create new drafts, revise campaigns, and save your work before submitting.
+            Create and manage your own campaigns. Check <a href="/staff/all-campaigns" className="text-primary hover:underline">All Campaigns</a> to see existing campaigns and avoid duplicates.
           </p>
         </div>
         <Dialog open={open} onOpenChange={(val) => {
@@ -171,6 +296,42 @@ export default function StaffCampaigns() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <Label>Voice Announcement Preview</Label>
+                <div className="flex items-center gap-2">
+                  <Select value={voice} onValueChange={setVoice}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fil-PH-Wavenet-A">Filipino — Wavenet A (Female)</SelectItem>
+                      <SelectItem value="fil-PH-Wavenet-B">Filipino — Wavenet B (Male)</SelectItem>
+                      <SelectItem value="en-US-Wavenet-D">English — Wavenet D (Male)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={generateVoicePreview}
+                    disabled={!form.objectives || isPlaying}
+                  >
+                    {isPlaying ? (
+                      <Volume2 className="h-4 w-4 mr-1" />
+                    ) : (
+                      <Play className="h-4 w-4 mr-1" />
+                    )}
+                    {isPlaying ? "Playing..." : "Preview Voice"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Preview your campaign description as a voice announcement before submitting.
+                </p>
+                {voiceError && (
+                  <div className="flex items-start gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                    <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                    <span>{voiceError}</span>
+                  </div>
+                )}
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
@@ -178,6 +339,64 @@ export default function StaffCampaigns() {
                 {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
                 {loading ? "Saving..." : "Save Draft"}
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* View Campaign Dialog */}
+        <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Campaign Details</DialogTitle>
+            </DialogHeader>
+            {viewCampaign && (
+              <div className="space-y-4">
+                <div>
+                  <Label>Title</Label>
+                  <p className="text-lg font-semibold">{viewCampaign.title}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Status</Label>
+                    <Badge variant={statusVariant[viewCampaign.status] || "outline"}>
+                      {statusLabel[viewCampaign.status] || viewCampaign.status}
+                    </Badge>
+                  </div>
+                  <div>
+                    <Label>Category</Label>
+                    <p className="text-sm capitalize">{viewCampaign.campaign_type || "general"}</p>
+                  </div>
+                  <div>
+                    <Label>Created by</Label>
+                    <p className="text-sm">{viewCampaign.creatorName}</p>
+                  </div>
+                  <div>
+                    <Label>Created Date</Label>
+                    <p className="text-sm">{viewCampaign.created_at ? new Date(viewCampaign.created_at).toLocaleDateString() : "N/A"}</p>
+                  </div>
+                </div>
+                <div>
+                  <Label>Description</Label>
+                  <div className="text-sm whitespace-pre-wrap max-h-40 overflow-y-auto border rounded p-3 bg-muted/50">
+                    {viewCampaign.description || "No description provided"}
+                  </div>
+                </div>
+                {viewCampaign.isCreatedByUser && canEdit(viewCampaign.status) && (
+                  <div className="flex justify-end">
+                    <Button 
+                      onClick={() => {
+                        setViewOpen(false);
+                        handleEdit(viewCampaign);
+                      }}
+                    >
+                      Edit This Campaign
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewOpen(false)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -202,37 +421,72 @@ export default function StaffCampaigns() {
         <div className="grid md:grid-cols-3 gap-4">
           {filtered.map((c) => {
             const status = c.status || "draft";
-            const editable = canEdit(status);
+            const editable = canEdit(status) && c.isCreatedByUser;
             return (
-              <Card key={c.id} className={status === "needs_revision" ? "border-amber-300" : ""}>
+              <Card key={c.id} className={status === "needs_revision" ? "border-amber-300" : !c.isCreatedByUser ? "opacity-70" : ""}>
                 <CardHeader>
-                  <Badge variant={statusVariant[status] || "outline"} className="w-fit mb-1">
-                    {statusLabel[status] || status}
-                  </Badge>
+                  <div className="flex items-center justify-between mb-1">
+                    <Badge variant={statusVariant[status] || "outline"}>
+                      {statusLabel[status] || status}
+                    </Badge>
+                    {c.isCreatedByUser && (
+                      <Badge variant="outline" className="text-xs">Your Campaign</Badge>
+                    )}
+                  </div>
                   <CardTitle className="text-base">{c.title}</CardTitle>
+                  
+                  <div className="flex flex-col gap-1 mt-2">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <User className="h-3 w-3" />
+                      <span>Created by: {c.creatorName}</span>
+                    </div>
+                    {c.created_at && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>{new Date(c.created_at).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                  </div>
+
                   {status === "needs_revision" && c.admin_notes ? (
-                    <div className="flex gap-1.5 items-start mt-1">
+                    <div className="flex gap-1.5 items-start mt-2">
                       <MessageSquare className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" />
                       <CardDescription className="text-amber-700 text-xs">
                         Admin: &ldquo;{c.admin_notes}&rdquo;
                       </CardDescription>
                     </div>
                   ) : (
-                    <CardDescription>
-                      {status === "draft" ? "Continue editing when ready" : status === "needs_revision" ? "Revision requested - click to edit" : "Awaiting or completed review"}
+                    <CardDescription className="mt-2">
+                      {status === "draft" ? "Continue editing when ready" : 
+                       status === "needs_revision" ? "Revision requested - click to edit" : 
+                       status === "submitted" || status === "pending_approval" ? "Pending admin review" :
+                       status === "published" ? "Published and visible to public" :
+                       status === "rejected" ? "Rejected by admin" :
+                       "Awaiting or completed review"}
                     </CardDescription>
                   )}
                 </CardHeader>
                 <CardFooter>
-                  <Button
-                    variant={status === "needs_revision" ? "default" : "outline"}
-                    size="sm"
-                    className="w-full"
-                    disabled={!editable}
-                    onClick={() => editable && handleEdit(c)}
-                  >
-                    {status === "draft" ? "Continue Editing" : status === "needs_revision" ? "Edit & Revise" : "View Details"}
-                  </Button>
+                  {editable ? (
+                    <Button
+                      variant={status === "needs_revision" ? "default" : "outline"}
+                      size="sm"
+                      className="w-full"
+                      onClick={() => handleEdit(c)}
+                    >
+                      {status === "draft" ? "Continue Editing" : status === "needs_revision" ? "Edit & Revise" : "View Details"}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => handleViewCampaign(c)}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      View Details
+                    </Button>
+                  )}
                 </CardFooter>
               </Card>
             );

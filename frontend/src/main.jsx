@@ -4,7 +4,21 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App.jsx";
 import { AuthProvider, useAuth } from "./hooks/useAuth.jsx";
 import { ThemeProvider } from "./components/ThemeProvider.jsx";
+import MaintenanceGuard from "./components/MaintenanceGuard.jsx";
 import "./index.css";
+
+// Register Service Worker for offline functionality
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then((registration) => {
+        console.log('Service Worker registered with scope:', registration.scope);
+      })
+      .catch((error) => {
+        console.log('Service Worker registration failed:', error);
+      });
+  });
+}
 
 // Error boundary to catch rendering errors
 class ErrorBoundary extends React.Component {
@@ -57,7 +71,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <BrowserRouter>
         <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
           <AuthProvider>
-            <AppWithAuth />
+            <MaintenanceGuard>
+              <AppWithAuth />
+            </MaintenanceGuard>
           </AuthProvider>
         </ThemeProvider>
       </BrowserRouter>

@@ -1,11 +1,11 @@
 ﻿import React, { useState, useEffect } from "react";
 import { CheckSquare, X, MessageSquare, Loader2, RefreshCw, FileText, AlertTriangle, Calendar, User } from "lucide-react";
+import { supabase } from "@/lib/supabase.js";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { supabase } from "@/lib/supabase.js";
 
 export default function CampaignApproval() {
   const [pending, setPending] = useState([]);
@@ -24,29 +24,18 @@ export default function CampaignApproval() {
     try {
       const { data, error } = await supabase
         .from("campaigns")
-        .select("id, title, description, campaign_type, status, created_at, created_by, admin_notes")
+        .select("id, title, description, campaign_type, status, created_at, created_by, admin_notes, users(name, email)")
         .eq("status", "submitted")
         .order("created_at", { ascending: false });
 
-      if (data && data.length > 0) {
-        // Try to fetch staff names
-        const userIds = [...new Set(data.map(c => c.created_by).filter(Boolean))];
-        let userMap = {};
-        if (userIds.length > 0) {
-          const { data: users } = await supabase
-            .from("users")
-            .select("id, name")
-            .in("id", userIds);
-          if (users) {
-            users.forEach(u => { userMap[u.id] = u.name; });
-          }
-        }
+      if (error) throw error;
 
+      if (data && data.length > 0) {
         setPending(data.map(c => ({
           id: c.id,
           title: c.title || "Untitled Campaign",
           description: c.description || "",
-          submittedBy: userMap[c.created_by] || "Staff Member",
+          submittedBy: c.users?.name || c.users?.email || "Staff Member",
           category: c.campaign_type || "general",
           status: c.status,
           created_at: c.created_at,
@@ -80,6 +69,37 @@ export default function CampaignApproval() {
         .eq("id", id);
 
       if (error) console.error("Error updating campaign:", error);
+
+      // Create notification for approved campaigns
+      if (decision === "approved") {
+        const campaign = pending.find(c => c.id === id);
+        if (campaign) {
+          try {
+            // Get all users to notify (staff, residents, public users)
+            const { data: users } = await supabase
+              .from("users")
+              .select("id")
+              .in("role", ["staff", "citizen", "public"]);
+
+            if (users && users.length > 0) {
+              const notifications = users.map(user => ({
+                recipient_id: user.id,
+                campaign_id: id,
+                title: `New Campaign Published: ${campaign.title}`,
+                message: `A new safety campaign "${campaign.title}" by ${campaign.submittedBy} has been published and is now available for viewing.`,
+                type: "campaign",
+                status: "unread"
+              }));
+
+              await supabase
+                .from("notifications")
+                .insert(notifications);
+            }
+          } catch (notifError) {
+            console.error("Error creating notifications:", notifError);
+          }
+        }
+      }
     } catch (err) {
       console.error("Error:", err);
     } finally {

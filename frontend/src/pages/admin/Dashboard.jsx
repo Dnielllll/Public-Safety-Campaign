@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Megaphone, Users, CheckSquare, TrendingUp, Bell, History, ArrowRight, Loader2 } from "lucide-react";
+import { Megaphone, Users, CheckSquare, TrendingUp, Bell, History, ArrowRight, Loader2, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +53,7 @@ function AnimatedNumber({ value, duration = 1000 }) {
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [campaigns, setCampaigns] = useState([]);
   const [users, setUsers] = useState([]);
   const [feedback, setFeedback] = useState([]);
@@ -122,6 +123,12 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchDashboardData();
+    setRefreshing(false);
   };
 
   const getTimeAgo = (dateString) => {

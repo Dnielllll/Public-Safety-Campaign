@@ -24,6 +24,7 @@ export default function FeedbackManagement() {
   const [feedback, setFeedback] = useState(initialFeedback);
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [respondingTo, setRespondingTo] = useState(null);
 
   useEffect(() => {
@@ -66,6 +67,12 @@ export default function FeedbackManagement() {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchFeedback();
+    setRefreshing(false);
+  };
+
   const respond = async (id) => {
     try {
       if (typeof id === 'string') {
@@ -95,8 +102,8 @@ export default function FeedbackManagement() {
           </h1>
           <p className="text-muted-foreground text-sm">Review resident feedback, complaints, suggestions, and survey responses.</p>
         </div>
-        <Button variant="outline" size="icon" onClick={fetchFeedback} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+        <Button variant="outline" size="icon" onClick={handleRefresh} disabled={refreshing}>
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
         </Button>
       </div>
 

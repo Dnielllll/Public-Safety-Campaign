@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Mail, Lock, Key, Eye, EyeOff, Shield } from "lucide-react";
+import { Mail, Lock, Key } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -8,12 +8,12 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth.jsx";
 import LoginOverlay from "@/components/LoginOverlay.jsx";
 import emailjs from '@emailjs/browser';
+import { supabase } from "@/lib/supabase.js";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ email: "", password: "", otp: "" });
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,22 +22,76 @@ export default function Login() {
   const [loggedInUser, setLoggedInUser] = useState(null);
   const [showOTP, setShowOTP] = useState(false);
   const [otpExpiry, setOtpExpiry] = useState(null);
-  const [otpTimer, setOtpTimer] = useState(120);
+  const [otpTimer, setOtpTimer] = useState(180);
   const [isAdminLogin, setIsAdminLogin] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
+  const [isSessionTimeout, setIsSessionTimeout] = useState(false);
+  const [showOtpBypassNotice, setShowOtpBypassNotice] = useState(false);
+  const [bypassTimeRemaining, setBypassTimeRemaining] = useState(0);
 
   React.useEffect(() => {
     const logoutMsg = localStorage.getItem("logout_message");
     if (logoutMsg) {
       setError(logoutMsg);
       localStorage.removeItem("logout_message");
+      setIsSessionTimeout(true); // Mark as session timeout
+      // Clear form fields on session timeout
+      setForm({ email: "", password: "", otp: "" });
     } else if (localStorage.getItem("logged_out") === "true") {
       setSuccessMsg("Logged out successfully.");
       localStorage.removeItem("logged_out");
     }
   }, []);
+
+  // Check for recent OTP verification when email changes
+  React.useEffect(() => {
+    if (form.email) {
+      const recentVerification = localStorage.getItem(`otp_verified_at_${form.email}`);
+      const isWithin3Minutes = recentVerification && (Date.now() - parseInt(recentVerification)) < 3 * 60 * 1000;
+      setShowOtpBypassNotice(isWithin3Minutes);
+      
+      if (isWithin3Minutes && recentVerification) {
+        const elapsed = Date.now() - parseInt(recentVerification);
+        const remaining = 3 * 60 * 1000 - elapsed;
+        setBypassTimeRemaining(Math.max(0, Math.floor(remaining / 1000)));
+      } else {
+        setBypassTimeRemaining(0);
+      }
+      
+      // Clean up expired OTP verification timestamps
+      if (recentVerification && !isWithin3Minutes) {
+        localStorage.removeItem(`otp_verified_at_${form.email}`);
+      }
+    } else {
+      setShowOtpBypassNotice(false);
+      setBypassTimeRemaining(0);
+    }
+  }, [form.email]);
+
+  // Bypass timer countdown
+  React.useEffect(() => {
+    let interval;
+    if (showOtpBypassNotice && bypassTimeRemaining > 0) {
+      interval = setInterval(() => {
+        setBypassTimeRemaining((prev) => {
+          const newTime = prev - 1;
+          if (newTime === 0) {
+            setShowOtpBypassNotice(false);
+            // Clean up expired timestamp
+            if (form.email) {
+              localStorage.removeItem(`otp_verified_at_${form.email}`);
+            }
+          }
+          return newTime;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [showOtpBypassNotice, bypassTimeRemaining, form.email]);
 
   // OTP Timer countdown
   React.useEffect(() => {
@@ -52,49 +106,143 @@ export default function Login() {
       setForm({ ...form, otp: "" });
     }
     return () => clearInterval(interval);
-  }, [showOTP, otpTimer]);
+  }, [showOTP, otpTimer, form]);
 
   const generateOTP = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
   };
 
   const handleEmailSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    console.log("=== FORM SUBMITTED ===");
+    console.log("Current form state:", form);
+    console.log("Show OTP:", showOTP);
+    console.log("Show Forgot Password:", showForgotPassword);
+    
     setError("");
     setLoading(true);
 
     try {
-      // Generate OTP
-      const otp = generateOTP();
-      const expiry = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes expiry
-      setOtpExpiry(expiry);
-      setOtpTimer(120);
+      console.log("=== DEBUG: Checking user for OTP ===");
+      console.log("Email being checked:", form.email);
+      
+      // First check if user exists and their role before sending OTP
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('role, email')
+        .eq('email', form.email)
+        .maybeSingle();
 
-      // Store OTP in localStorage
-      localStorage.setItem(`otp_${form.email}`, JSON.stringify({ otp, expiry: expiry.toISOString() }));
+      console.log("User data from database:", userData);
+      console.log("User error:", userError);
 
-      // Send OTP via EmailJS
-      const templateParams = {
-        to_email: form.email,
-        to_name: form.email.split('@')[0],
-        otp_code: otp,
-        expiry_minutes: 2,
-        logo_url: 'https://i.imgur.com/bphZEMi.png',
-      };
+      if (userError || !userData) {
+        console.log("User not found or error occurred");
+        setError("User not found. Please check your email or register as a resident.");
+        setLoading(false);
+        return;
+      }
 
-      await emailjs.send(
-        import.meta.env.VITE_EMAILJS_SERVICE_ID,
-        import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
-        templateParams,
-        import.meta.env.VITE_EMAILJS_PUBLIC_KEY
-      );
+      console.log("User role detected:", userData.role);
+      console.log("Role requires OTP check:", userData.role === 'public' || userData.role === 'citizen' || userData.role === 'staff');
 
-      setShowOTP(true);
-      setSuccessMsg("OTP sent to your email. Valid for 2 minutes.");
+      // Check if user was recently verified within 3 minutes (bypass OTP)
+      const recentVerification = localStorage.getItem(`otp_verified_at_${form.email}`);
+      const isWithin3Minutes = recentVerification && (Date.now() - parseInt(recentVerification)) < 3 * 60 * 1000;
+
+      // Require OTP for residents (public/citizen) and staff, unless recently verified
+      if ((userData.role === 'public' || userData.role === 'citizen' || userData.role === 'staff') && !isWithin3Minutes) {
+        console.log("=== Sending OTP ===");
+        // Generate OTP
+        const otp = generateOTP();
+        const expiry = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes expiry to match bypass period
+        setOtpExpiry(expiry);
+        setOtpTimer(180);
+
+        console.log("Generated OTP:", otp);
+        console.log("OTP expiry:", expiry);
+
+        // Store OTP in localStorage
+        localStorage.setItem(`otp_${form.email}`, JSON.stringify({ otp, expiry: expiry.toISOString() }));
+
+        // Send OTP via EmailJS with hardcoded credentials
+        const templateParams = {
+          to_email: form.email,
+          to_name: form.email.split('@')[0],
+          otp_code: otp,
+          expiry_minutes: 3,
+          logo_url: 'https://i.imgur.com/bphZEMi.png',
+        };
+
+        console.log("EmailJS template params:", templateParams);
+
+        try {
+          const emailResult = await emailjs.send(
+            'service_crxpuvk',
+            'template_mvs8aeu',
+            templateParams,
+            'R556DquxALj-fCV2G'
+          );
+          console.log("EmailJS result:", emailResult);
+        } catch (emailError) {
+          console.error("EmailJS error:", emailError);
+          throw emailError;
+        }
+
+        setShowOTP(true);
+        setSuccessMsg("OTP sent to your email. Valid for 3 minutes.");
+        console.log("=== OTP sent successfully ===");
+      } else {
+        // Skip OTP for admins or recently verified users (within 3 minutes)
+        if (isWithin3Minutes) {
+          console.log("=== Bypassing OTP - recently verified within 3 minutes ===");
+          const elapsed = Date.now() - parseInt(recentVerification);
+          const remaining = 3 * 60 * 1000 - elapsed;
+          setBypassTimeRemaining(Math.max(0, Math.floor(remaining / 1000)));
+          setSuccessMsg("Recently verified. No OTP required.");
+          setShowOtpBypassNotice(true);
+        } else {
+          console.log("=== No OTP required for role:", userData.role, "===");
+        }
+        
+        // Proceed directly to login (no OTP needed)
+        try {
+          const user = await login({ email: form.email, password: form.password });
+
+          // Validate user role before navigation
+          if (!user || !user.role) {
+            setError("Invalid user account. Please contact administrator.");
+            setLoading(false);
+            return;
+          }
+
+          let dest = "/";
+          if (user.role === "super_admin") {
+            dest = "/super-admin";
+          } else if (user.role === "admin") {
+            dest = "/admin";
+          } else if (user.role === "staff") {
+            dest = "/staff";
+          } else if (user.role === "public" || user.role === "citizen") {
+            dest = "/";
+          } else {
+            setError("Invalid user role. Please contact administrator.");
+            setLoading(false);
+            return;
+          }
+
+          setLoggedInUser(user);
+          setPendingDest(dest);
+          setLoggingIn(true);
+        } catch (loginErr) {
+          setError(loginErr.message || "Invalid email or password. Please try again.");
+        }
+      }
     } catch (err) {
       // Clear the stored OTP if email sending failed
       localStorage.removeItem(`otp_${form.email}`);
-      setError("Failed to send OTP. Please check your email address or try again.");
+      console.error("General error in handleEmailSubmit:", err);
+      setError("Failed to process login. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -140,6 +288,12 @@ export default function Login() {
   };
 
   const handlePasswordLogin = async () => {
+    if (!form.password) {
+      setError("Please enter your password.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const user = await login({ email: form.email, password: form.password });
 
@@ -181,78 +335,7 @@ export default function Login() {
     }
   };
 
-  const handleDirectLogin = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
 
-    try {
-      const user = await login({ email: form.email, password: form.password });
-
-      // Validate user role before navigation
-      if (!user || !user.role) {
-        setError("Invalid user account. Please contact administrator.");
-        setLoading(false);
-        return;
-      }
-
-      // Check if user is admin, super admin, or staff - allow direct login
-      if (user.role === "super_admin" || user.role === "admin" || user.role === "staff") {
-        let dest = user.role === "super_admin" ? "/super-admin" : (user.role === "admin" ? "/admin" : "/staff");
-        setLoggedInUser(user);
-        setPendingDest(dest);
-        setLoggingIn(true);
-      } else {
-        // Check if OTP was verified in the last 30 minutes
-        const lastVerifiedStr = localStorage.getItem(`otp_verified_at_${form.email}`);
-        if (lastVerifiedStr) {
-          const lastVerified = parseInt(lastVerifiedStr, 10);
-          const thirtyMins = 30 * 60 * 1000;
-          if (Date.now() - lastVerified < thirtyMins) {
-            // Bypass OTP, proceed to destination
-            let dest = user.role === "staff" ? "/staff" : "/";
-            setLoggedInUser(user);
-            setPendingDest(dest);
-            setLoggingIn(true);
-            setLoading(false);
-            return;
-          }
-        }
-
-        // For staff and citizens not verified recently, generate and require OTP
-        const otp = generateOTP();
-        const expiry = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes expiry
-        setOtpExpiry(expiry);
-        setOtpTimer(120);
-
-        // Store OTP in localStorage
-        localStorage.setItem(`otp_${form.email}`, JSON.stringify({ otp, expiry: expiry.toISOString() }));
-
-        // Send OTP via EmailJS
-        const templateParams = {
-          to_email: form.email,
-          to_name: form.email.split('@')[0],
-          otp_code: otp,
-          expiry_minutes: 2,
-          logo_url: 'https://i.imgur.com/bphZEMi.png',
-        };
-
-        await emailjs.send(
-          import.meta.env.VITE_EMAILJS_SERVICE_ID,
-          import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
-          templateParams,
-          import.meta.env.VITE_EMAILJS_PUBLIC_KEY
-        );
-
-        setLoading(false);
-        setShowOTP(true);
-        setSuccessMsg("OTP sent to your email. Valid for 2 minutes.");
-      }
-    } catch (err) {
-      setError(err.message || "Invalid email or password. Please try again.");
-      setLoading(false);
-    }
-  };
 
 
   const doNavigate = () => {
@@ -276,7 +359,7 @@ export default function Login() {
         expiry: new Date(Date.now() + 30 * 60 * 1000).toISOString() 
       }));
 
-      // Send reset email via EmailJS
+      // Send reset email via EmailJS with hardcoded credentials
       const templateParams = {
         to_email: resetEmail,
         to_name: resetEmail.split('@')[0],
@@ -286,10 +369,10 @@ export default function Login() {
       };
 
       await emailjs.send(
-        import.meta.env.VITE_EMAILJS_SERVICE_ID,
-        import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+        'service_crxpuvk',
+        'template_mvs8aeu',
         templateParams,
-        import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+        'R556DquxALj-fCV2G'
       );
 
       setSuccessMsg("Password reset link sent to your email. Valid for 30 minutes.");
@@ -348,10 +431,11 @@ export default function Login() {
               <CardTitle>{showForgotPassword ? "Reset Password" : (showOTP ? "Enter OTP" : "Log in")}</CardTitle>
               <CardDescription>
                 {showForgotPassword ? "Enter your email to receive a password reset link." : 
-                 (showOTP ? `Enter the 6-digit code sent to your email. Expires in ${Math.floor(otpTimer / 60)}:${(otpTimer % 60).toString().padStart(2, '0')}` : "")}
+                 (showOTP ? `Enter the 6-digit code sent to your email. Expires in ${Math.floor(otpTimer / 60)}:${(otpTimer % 60).toString().padStart(2, '0')}` : 
+                 (showOtpBypassNotice ? `No OTP required - recently verified (bypass expires in ${Math.floor(bypassTimeRemaining / 60)}:${(bypassTimeRemaining % 60).toString().padStart(2, '0')})` : "Enter your credentials to continue"))}
               </CardDescription>
             </CardHeader>
-            <form onSubmit={showForgotPassword ? handleForgotPassword : (showOTP ? handleOTPSubmit : handleDirectLogin)}>
+            <form onSubmit={showForgotPassword ? handleForgotPassword : (showOTP ? handleOTPSubmit : handleEmailSubmit)} autoComplete="off" noValidate>
               <CardContent className="space-y-4">
                 {showForgotPassword ? (
                   <>
@@ -360,12 +444,13 @@ export default function Login() {
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          id="reset-email"
+                          id={isSessionTimeout ? "reset-email-timeout" : "reset-email"}
                           type="email"
                           required
                           placeholder="you@example.com"
                           value={resetEmail}
                           onChange={(e) => setResetEmail(e.target.value)}
+                          autoComplete={isSessionTimeout ? "off" : "email"}
                           className="pl-10"
                         />
                       </div>
@@ -392,12 +477,13 @@ export default function Login() {
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          id="email"
+                          id={isSessionTimeout ? "email-timeout" : "email"}
                           type="email"
                           required
                           placeholder="you@example.com"
                           value={form.email}
                           onChange={(e) => setForm({ ...form, email: e.target.value })}
+                          autoComplete={isSessionTimeout ? "off" : "email"}
                           className="pl-10"
                         />
                       </div>
@@ -408,21 +494,15 @@ export default function Login() {
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          id="password"
-                          type={showPassword ? "text" : "password"}
+                          id={isSessionTimeout ? "password-timeout" : "password"}
+                          type="password"
                           required
                           placeholder="••••••••"
                           value={form.password}
                           onChange={(e) => setForm({ ...form, password: e.target.value })}
+                          autoComplete={isSessionTimeout ? "off" : "new-password"}
                           className="pl-10"
                         />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
-                        >
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
                       </div>
                     </div>
                   </>
@@ -452,21 +532,15 @@ export default function Login() {
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          id="password"
-                          type={showPassword ? "text" : "password"}
+                          id={isSessionTimeout ? "password-timeout-otp" : "password"}
+                          type="password"
                           required
                           placeholder="••••••••"
                           value={form.password}
                           onChange={(e) => setForm({ ...form, password: e.target.value })}
+                          autoComplete={isSessionTimeout ? "off" : "new-password"}
                           className="pl-10"
                         />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
-                        >
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
                       </div>
                     </div>
 
@@ -483,6 +557,17 @@ export default function Login() {
                     >
                       Back to email
                     </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleEmailSubmit}
+                      disabled={loading}
+                      className="w-full"
+                    >
+                      {loading ? "Resending..." : "Resend OTP"}
+                    </Button>
                   </>
                 )}
 
@@ -495,7 +580,7 @@ export default function Login() {
               </CardContent>
               <CardFooter className="flex flex-col gap-3">
                 <Button type="submit" className="w-full" disabled={loading || resetLoading}>
-                  {resetLoading ? "Sending…" : (loading ? "Processing…" : (showForgotPassword ? "Send Reset Link" : (showOTP ? "Verify & Sign in" : "Sign in")))}
+                  {resetLoading ? "Sending…" : (loading ? "Processing…" : (showForgotPassword ? "Send Reset Link" : (showOTP ? "Verify & Sign in" : "Continue")))}
                 </Button>
 
                 {!showForgotPassword && !showOTP && (

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, Outlet, useLocation, useNavigate, Navigate } from "react-router-dom";
-import { Bell, MessageSquare, Siren, User, Home, Megaphone, Volume2, ClipboardList, LogOut, Menu, X, Building2 } from "lucide-react";
+import { Bell, MessageSquare, Siren, User, Home, Megaphone, Volume2, ClipboardList, LogOut, Menu, X, Building2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth.jsx";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/ThemeToggle.jsx";
 import LogoutOverlay from "@/components/LogoutOverlay.jsx";
 import AIChatbot from "@/components/AIChatbot.jsx";
+import OfflineIndicator from "@/components/OfflineIndicator.jsx";
 
 const navItems = [
   { to: "/", label: "Home", icon: Home },
@@ -23,9 +24,15 @@ const navItems = [
 export default function PublicLayout() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, maintenanceMode } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  
+  const isMaintenance = maintenanceMode || localStorage.getItem('maintenance_mode') === 'true';
+
+  if (isMaintenance && user?.role !== 'super_admin' && pathname !== '/emergency') {
+    return <Navigate to="/maintenance" replace />;
+  }
 
   const handleLogout = () => {
     setLoggingOut(true);
@@ -40,6 +47,7 @@ export default function PublicLayout() {
   if (!user || !user.role) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
+        <OfflineIndicator />
         {/* Top navigation bar */}
         <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur shadow-sm">
           <div className="container flex h-16 items-center justify-between">
@@ -152,10 +160,12 @@ export default function PublicLayout() {
   // Only show sidebar if user has valid 'citizen' or 'public' role
   if (user.role === 'citizen' || user.role === 'public') {
     return (
-      <div className="min-h-screen flex bg-background">
+      <div className="min-h-screen flex flex-col bg-background">
+        <OfflineIndicator />
+        <div className="flex flex-1">
         {loggingOut && <LogoutOverlay onDone={doLogout} />}
         {/* Sidebar - Desktop */}
-        <aside className="hidden lg:flex flex-col w-64 border-r border-border bg-white sticky top-0 h-screen">
+        <aside className="hidden lg:flex flex-col w-64 border-r border-border bg-white sticky top-0 h-[calc(100vh-40px)]">
           {/* Logo section */}
           <div className="p-4 border-b border-border">
             <Link to="/" className="flex items-center gap-2">
@@ -170,6 +180,9 @@ export default function PublicLayout() {
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto p-3 space-y-1 scrollbar-thin">
             {navItems.map((item) => {
+              // Hide AI Voice from resident accounts
+              if (item.to === "/voice-announcements") return null;
+
               const Icon = item.icon;
               const active = pathname === item.to;
               return (
@@ -195,8 +208,11 @@ export default function PublicLayout() {
             <div className="flex flex-col gap-2">
               <Link to="/profile" className="flex items-center gap-2 p-2 rounded-md hover:bg-secondary transition-colors">
                 <Avatar className="h-8 w-8">
-                  {user?.avatar_url && <AvatarImage src={user.avatar_url} alt={user?.name} />}
-                  <AvatarFallback>{user.name?.[0] ?? "U"}</AvatarFallback>
+                  {user?.avatar_url ? (
+                    <AvatarImage src={user.avatar_url} alt={user?.name} />
+                  ) : (
+                    <AvatarFallback>{user.name?.[0] ?? "U"}</AvatarFallback>
+                  )}
                 </Avatar>
                 <span className="text-sm font-medium truncate">{user.name}</span>
               </Link>
@@ -231,8 +247,11 @@ export default function PublicLayout() {
                 <ThemeToggle />
                 <Link to="/profile">
                   <Avatar>
-                    {user?.avatar_url && <AvatarImage src={user.avatar_url} alt={user?.name} />}
-                    <AvatarFallback>{user.name?.[0] ?? "U"}</AvatarFallback>
+                    {user?.avatar_url ? (
+                      <AvatarImage src={user.avatar_url} alt={user?.name} />
+                    ) : (
+                      <AvatarFallback>{user.name?.[0] ?? "U"}</AvatarFallback>
+                    )}
                   </Avatar>
                 </Link>
                 <button
@@ -248,6 +267,9 @@ export default function PublicLayout() {
             {mobileOpen && (
               <nav className="border-t border-border bg-white px-4 pb-4 pt-2 flex flex-col gap-1 max-h-[70vh] overflow-y-auto">
                 {navItems.map((item) => {
+                  // Hide AI Voice from resident accounts
+                  if (item.to === "/voice-announcements") return null;
+
                   const Icon = item.icon;
                   const active = pathname === item.to;
                   return (
@@ -291,7 +313,7 @@ export default function PublicLayout() {
                 <img src="/logo.png" alt="Barangay 178 Seal" className="h-8 w-8 rounded-full object-contain" />
                 <p>© {new Date().getFullYear()} Barangay 178, Camarin, North Caloocan City.</p>
               </div>
-              <p>Safety Campaign Management System · AI Voice by Google Cloud Text-to-Speech</p>
+              <p>Safety Campaign Management System</p>
             </div>
           </footer>
         </div>
@@ -308,9 +330,10 @@ export default function PublicLayout() {
                 <img src="/logo.png" alt="Barangay 178 Seal" className="h-8 w-8 rounded-full object-contain" />
                 <p>© {new Date().getFullYear()} Barangay 178, Camarin, North Caloocan City.</p>
               </div>
-              <p>Safety Campaign Management System · AI Voice by Google Cloud Text-to-Speech</p>
+              <p>Safety Campaign Management System</p>
             </div>
           </footer>
+        </div>
         </div>
         <AIChatbot />
       </div>
@@ -319,11 +342,19 @@ export default function PublicLayout() {
 
   // For admin/staff/super_admin users, redirect them to their respective dashboards
   // if they land on public routes, rather than returning a blank screen (null)
-  if (user.role === 'super_admin' || user.role === 'admin') {
-    return <Navigate to="/admin" replace />;
+  if (user.role === 'super_admin') {
+    return <Navigate to="/super-admin" replace />;
   }
-  if (user.role === 'staff') {
-    return <Navigate to="/staff" replace />;
+  
+  // Don't redirect admin/staff to their dashboards if under maintenance 
+  // because MaintenanceGuard will just block them. Let them see the public view.
+  if (!isMaintenance) {
+    if (user.role === 'admin') {
+      return <Navigate to="/admin" replace />;
+    }
+    if (user.role === 'staff') {
+      return <Navigate to="/staff" replace />;
+    }
   }
 
   // Fallback for any other case

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Upload, FileText, Image as ImageIcon, Video, Volume2, Trash2, Sparkles } from "lucide-react";
+import { Upload, FileText, Image as ImageIcon, Video, Volume2, Trash2, Sparkles, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ export default function ContentManagement() {
   const [editingItem, setEditingItem] = useState(null);
   const [form, setForm] = useState({ campaign: "", type: "announcement", file: null, activity_date: "" });
   const [uploading, setUploading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchCampaigns();
@@ -60,6 +61,12 @@ export default function ContentManagement() {
     } catch (error) {
       console.error('Error fetching content:', error);
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchCampaigns(), fetchContent()]);
+    setRefreshing(false);
   };
 
   const remove = async (id) => {
@@ -222,15 +229,19 @@ export default function ContentManagement() {
           <h1 className="font-display text-2xl font-bold">Content Management</h1>
           <p className="text-muted-foreground text-sm">Manage announcements, posters, infographics, videos, and advisories.</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={openUpload}><Upload className="h-4 w-4 mr-1" /> Upload Content</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingItem ? "Edit Content" : "Upload Content"}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={openUpload}><Upload className="h-4 w-4 mr-1" /> Upload Content</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingItem ? "Edit Content" : "Upload Content"}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label>Campaign</Label>
                 <Select value={form.campaign} onValueChange={(v) => setForm({ ...form, campaign: v })}>
@@ -278,7 +289,7 @@ export default function ContentManagement() {
                   <p className="text-xs text-muted-foreground">Supported formats: JPG, PNG, PDF, MP4.</p>
                 </div>
               )}
-            </div>
+              </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)} disabled={uploading}>Cancel</Button>
               <Button onClick={handleSave} disabled={uploading}>
@@ -287,6 +298,7 @@ export default function ContentManagement() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Tabs defaultValue="all">

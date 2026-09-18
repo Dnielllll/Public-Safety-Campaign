@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { CheckCircle, Loader2, Eye, EyeOff, Mail } from "lucide-react";
+import { CheckCircle, Loader2, Eye, EyeOff } from "lucide-react";
 import { supabaseHelpers } from "@/lib/supabase.js";
 import { notificationApi } from "@/lib/apiGateway.js";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,18 +30,10 @@ function SuccessScreen({ name, email, onContinue }) {
           Welcome to Barangay 178, <span className="font-semibold text-foreground">{name}</span>!
         </p>
         <p className="text-muted-foreground text-sm mb-4">
-          Your resident account has been successfully created.
+          Your resident account has been successfully created and is ready to use.
         </p>
 
-        <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6 text-left">
-          <Mail className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-blue-800">Check your email</p>
-            <p className="text-xs text-blue-600">
-              A confirmation link was sent to <strong>{email}</strong>. Click it to verify your account before logging in.
-            </p>
-          </div>
-        </div>
+
 
         <Button className="w-full" onClick={onContinue}>
           Go to Login →
@@ -64,7 +57,7 @@ function LoadingOverlay() {
           />
         </div>
         <p className="font-display font-semibold text-foreground">Creating your account…</p>
-        <p className="text-sm text-muted-foreground">Saving to Supabase database…</p>
+        <p className="text-sm text-muted-foreground">Please wait while we set up your account…</p>
       </div>
     </div>
   );
@@ -73,6 +66,7 @@ function LoadingOverlay() {
 // Main Register Page
 export default function Register() {
   const navigate = useNavigate();
+  const { validatePassword } = useAuth();
   const [form, setForm] = useState({ name: "", email: "", phone: "", address: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -97,18 +91,17 @@ export default function Register() {
       setError("Phone number should be maximum 11 digits only. No symbols or special characters.");
       return;
     }
-    if (form.password.length < 6) {
-      setError("Password must be at least 6 characters.");
+
+    // Validate password using configurable requirements
+    const passwordValidation = validatePassword(form.password);
+    if (!passwordValidation.isValid) {
+      setError(passwordValidation.errors.join(' '));
       return;
     }
 
     setLoading(true);
     try {
-      // Use Supabase Auth signUp — this:
-      //   1. Creates a user in auth.users
-      //   2. Sends a confirmation email (if enabled in project)
-      //   3. The DB trigger (handle_new_user) auto-inserts into public.users
-      //      with name, phone, address, role='citizen' from metadata
+      // Use Supabase Auth signUp — this creates user in auth.users
       const { data, error: signUpError } = await supabaseHelpers.signUp(
         form.email,
         form.password,
@@ -132,6 +125,22 @@ export default function Register() {
 
       if (!data?.user) {
         throw new Error("Registration failed. Please try again.");
+      }
+
+      // Manually create user profile in public.users (since trigger is disabled)
+      try {
+        await supabaseHelpers.createUser({
+          id: data.user.id,
+          email: form.email,
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          address: form.address.trim(),
+          role: "citizen",
+          is_active: true,
+        });
+      } catch (profileError) {
+        console.warn('Failed to create user profile:', profileError.message);
+        // Don't fail registration if profile creation fails
       }
 
       // Send welcome email via notification-service

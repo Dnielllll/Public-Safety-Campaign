@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Search, Filter, Volume2, ArrowRight, Megaphone, Image as ImageIcon, Video } from "lucide-react";
+import { Search, Filter, Volume2, ArrowRight, Megaphone, Image as ImageIcon, Video, Trash2, Square } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,9 +22,50 @@ export default function SafetyCampaigns() {
   const [priority, setPriority] = useState("All");
   const [selected, setSelected] = useState(null);
   const [playing, setPlaying] = useState(false);
+  const [cachedCampaigns, setCachedCampaigns] = useState([]);
+  const [downloading, setDownloading] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [useMock, setUseMock] = useState(false);
+
+  // Load campaigns from service worker cache (used when offline)
+  const loadCachedCampaignData = () => {
+    return new Promise((resolve) => {
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        const channel = new MessageChannel();
+        
+        // Set a timeout in case the service worker doesn't respond
+        const timeout = setTimeout(() => {
+          resolve([]);
+        }, 3000);
+        
+        navigator.serviceWorker.controller.postMessage({
+          type: 'GET_ALL_CACHED_CAMPAIGN_DATA'
+        }, [channel.port1]);
+        
+        channel.port2.onmessage = (event) => {
+          clearTimeout(timeout);
+          resolve(event.data.campaigns || []);
+        };
+      } else {
+        resolve([]);
+      }
+    });
+  };
+
+  // Stop voice announcement when component unmounts or page changes
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis.cancel();
+      setPlaying(null);
+    };
+  }, []);
+
+  // Stop voice announcement when any button is clicked
+  const stopVoiceOnClick = () => {
+    window.speechSynthesis.cancel();
+    setPlaying(null);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -32,21 +73,57 @@ export default function SafetyCampaigns() {
       .then(({ data, error }) => {
         if (error) {
           console.error("Campaign fetch error:", error);
+          // If offline, try to load from cache
+          if (!navigator.onLine) {
+            return loadCachedCampaignData().then((cachedData) => {
+              if (cachedData.length > 0) {
+                setCampaigns(cachedData);
+                setUseMock(false);
+              } else {
+                setUseMock(true);
+                setCampaigns([]);
+              }
+            });
+          }
           setUseMock(true);
           setCampaigns([]);
         } else {
           // Use real data from Supabase (even if empty)
-          setCampaigns(Array.isArray(data) ? data : []);
+          // Deduplicate campaigns by ID to prevent duplicates
+          const uniqueCampaigns = Array.isArray(data) 
+            ? data.filter((campaign, index, self) =>
+                index === self.findIndex((c) => c.id === campaign.id)
+              )
+            : [];
+          
+          setCampaigns(uniqueCampaigns);
           setUseMock(false);
           // Fetch content for campaigns
-          fetchCampaignContent(Array.isArray(data) ? data : []);
+          fetchCampaignContent(uniqueCampaigns);
         }
       })
       .catch(() => {
+        // Network error — try offline cache
+        if (!navigator.onLine) {
+          loadCachedCampaignData().then((cachedData) => {
+            if (cachedData.length > 0) {
+              setCampaigns(cachedData);
+              setUseMock(false);
+            } else {
+              setUseMock(true);
+              setCampaigns([]);
+            }
+            setLoading(false);
+          });
+          return;
+        }
         setUseMock(true);
         setCampaigns([]);
       })
       .finally(() => setLoading(false));
+    
+    // Load cached campaigns
+    loadCachedCampaigns();
   }, []);
 
   const fetchCampaignContent = async (campaignsList) => {
@@ -78,6 +155,53 @@ export default function SafetyCampaigns() {
       setCampaignContent(contentByCampaign);
     } catch (error) {
       console.error('Error fetching campaign content:', error);
+    }
+  };
+
+  const loadCachedCampaigns = () => {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      const channel = new MessageChannel();
+      
+      navigator.serviceWorker.controller.postMessage({
+        type: 'GET_CACHED_CAMPAIGNS'
+      }, [channel.port1]);
+      
+      channel.port2.onmessage = (event) => {
+        setCachedCampaigns(event.data.campaignIds || []);
+      };
+    }
+  };
+
+  const cacheCampaign = (campaign) => {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      setDownloading(campaign.id);
+      
+      navigator.serviceWorker.controller.postMessage({
+        type: 'CACHE_CAMPAIGN',
+        campaignId: campaign.id,
+        campaignData: campaign
+      });
+      
+      // Simulate caching delay and update UI
+      setTimeout(() => {
+        setDownloading(null);
+        loadCachedCampaigns();
+      }, 1000);
+    }
+  };
+
+  const removeCachedCampaign = (campaignId) => {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      const channel = new MessageChannel();
+      
+      navigator.serviceWorker.controller.postMessage({
+        type: 'CLEAR_CAMPAIGN_CACHE',
+        campaignId: campaignId
+      }, [channel.port1]);
+      
+      channel.port2.onmessage = () => {
+        loadCachedCampaigns();
+      };
     }
   };
 
@@ -137,7 +261,7 @@ export default function SafetyCampaigns() {
     const contentList = campaignContent[selected.id] || [];
     return (
       <div className="container py-8">
-        <button onClick={() => setSelected(null)} className="text-sm text-primary mb-4 flex items-center gap-1 hover:underline">
+        <button onClick={() => { stopVoiceOnClick(); setSelected(null); }} className="text-sm text-primary mb-4 flex items-center gap-1 hover:underline">
           ← Back to campaigns
         </button>
         <Card className="max-w-3xl mx-auto">
@@ -150,9 +274,18 @@ export default function SafetyCampaigns() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm whitespace-pre-line">{selected.description || selected.objectives || "No additional description provided."}</p>
-            <Button onClick={() => handleListen(selected)} disabled={playing === selected.id} variant="outline">
-              <Volume2 className="h-4 w-4 mr-2" />
-              {playing === selected.id ? "Playing…" : "Voice Announcement"}
+            <Button onClick={() => handleListen(selected)} variant="outline">
+              {playing === selected.id ? (
+                <>
+                  <Square className="h-4 w-4 mr-2" />
+                  Stop
+                </>
+              ) : (
+                <>
+                  <Volume2 className="h-4 w-4 mr-2" />
+                  Voice Announcement
+                </>
+              )}
             </Button>
 
             {contentList.length > 0 && (
@@ -202,20 +335,20 @@ export default function SafetyCampaigns() {
             placeholder="Search campaigns…"
             className="pl-9"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { stopVoiceOnClick(); setSearch(e.target.value); }}
           />
         </div>
         <select
           className="rounded-md border border-input bg-background px-3 py-2 text-sm"
           value={category}
-          onChange={(e) => setCategory(e.target.value)}
+          onChange={(e) => { stopVoiceOnClick(); setCategory(e.target.value); }}
         >
           {categories.map((c) => <option key={c}>{c}</option>)}
         </select>
         <select
           className="rounded-md border border-input bg-background px-3 py-2 text-sm"
           value={priority}
-          onChange={(e) => setPriority(e.target.value)}
+          onChange={(e) => { stopVoiceOnClick(); setPriority(e.target.value); }}
         >
           {priorities.map((p) => <option key={p}>{p}</option>)}
         </select>
@@ -263,13 +396,24 @@ export default function SafetyCampaigns() {
                   </CardDescription>
                 </CardHeader>
                 <CardFooter className="justify-between mt-auto">
-                  <Button variant="ghost" size="sm" onClick={() => setSelected(c)}>
+                  <Button variant="ghost" size="sm" onClick={() => { stopVoiceOnClick(); setSelected(c); }}>
                     Read more <ArrowRight className="h-3 w-3 ml-1" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleListen(c)} disabled={playing === c.id}>
-                    <Volume2 className="h-4 w-4 mr-1" />
-                    {playing === c.id ? "Playing…" : "Listen"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleListen(c)}>
+                      {playing === c.id ? (
+                        <>
+                          <Square className="h-4 w-4 mr-1" />
+                          Stop
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 className="h-4 w-4 mr-1" />
+                          Listen
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </CardFooter>
               </Card>
             );
@@ -280,8 +424,17 @@ export default function SafetyCampaigns() {
       {!loading && displayed.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           <Megaphone className="h-10 w-10 mx-auto mb-2 opacity-30" />
-          <p className="font-medium">No published campaigns yet.</p>
-          <p className="text-xs mt-1">Campaigns approved by the admin will appear here.</p>
+          {!navigator.onLine ? (
+            <>
+              <p className="font-medium">No campaigns saved for offline viewing.</p>
+              <p className="text-xs mt-1">Campaigns will be available for offline viewing when this feature is enabled.</p>
+            </>
+          ) : (
+            <>
+              <p className="font-medium">No published campaigns yet.</p>
+              <p className="text-xs mt-1">Campaigns approved by the admin will appear here.</p>
+            </>
+          )}
         </div>
       )}
     </div>

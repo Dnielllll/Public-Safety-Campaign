@@ -179,20 +179,25 @@ export const ContentAPI = {
 };
 
 /* ------------------------------------------------------------------ */
-/* AI API (Process 3) - Not implemented yet                             */
+/* AI API (Process 3) - Google Cloud TTS Integration                   */
 /* ------------------------------------------------------------------ */
 export const AIAPI = {
   generateText: async (payload) => {
-    throw new Error('AI features require backend API');
+    const response = await api.post('/ai/generate-text', payload);
+    return { data: response.data };
   },
   rewrite: async (payload) => {
-    throw new Error('AI features require backend API');
+    const response = await api.post('/ai/rewrite', payload);
+    return { data: response.data };
   },
   textToSpeech: async (payload) => {
-    throw new Error('AI features require backend API');
+    const response = await api.post('/ai/text-to-speech', payload);
+    return { data: response.data };
   },
   getVoiceAnnouncement: async (campaignId) => {
-    throw new Error('AI features require backend API');
+    // This would fetch a previously generated voice announcement
+    // For now, we'll generate it on-demand
+    throw new Error('Voice announcement fetch not implemented');
   },
 };
 

@@ -11,7 +11,7 @@ const priorityVariant = { critical: "destructive", high: "warning", medium: "sec
 
 const quickLinks = [
   { to: "/campaigns", label: "Safety Campaigns", icon: Megaphone, color: "bg-orange-200 text-orange-600" },
-  { to: "/voice-announcements", label: "AI Voice Announcements", icon: Volume2, color: "bg-orange-200 text-orange-600" },
+  { to: "/voice-announcements", label: "AI Voice Announcements", icon: Volume2, color: "bg-orange-200 text-orange-600", requirePublic: true },
   { to: "/emergency", label: "Emergency Info", icon: ShieldAlert, color: "bg-destructive/10 text-destructive" },
   { to: "/notifications", label: "Notifications", icon: Bell, color: "bg-secondary text-secondary-foreground" },
   { to: "/feedback", label: "Submit Feedback", icon: MessageSquare, color: "bg-muted text-muted-foreground" },
@@ -25,7 +25,15 @@ export default function PublicDashboard() {
 
   useEffect(() => {
     supabaseHelpers.getCampaigns({ status: "published" })
-      .then(({ data }) => setCampaigns(Array.isArray(data) ? data : []))
+      .then(({ data }) => {
+        // Deduplicate campaigns by ID to prevent duplicates
+        const uniqueCampaigns = Array.isArray(data) 
+          ? data.filter((campaign, index, self) =>
+              index === self.findIndex((c) => c.id === campaign.id)
+            )
+          : [];
+        setCampaigns(uniqueCampaigns);
+      })
       .catch(() => setCampaigns(mockCampaigns));
   }, []);
 
@@ -56,9 +64,11 @@ export default function PublicDashboard() {
             <Button variant="outline" asChild className="bg-white/10 border-white/30 text-white hover:bg-white/20 backdrop-blur-sm">
               <Link to="/emergency"><Siren className="h-4 w-4 mr-1" /> Emergency Info</Link>
             </Button>
-            <Button variant="outline" asChild className="bg-white/10 border-white/30 text-white hover:bg-white/20 backdrop-blur-sm">
-              <Link to="/voice-announcements"><Volume2 className="h-4 w-4 mr-1" /> Voice Announcement</Link>
-            </Button>
+            {!user && (
+              <Button variant="outline" asChild className="bg-white/10 border-white/30 text-white hover:bg-white/20 backdrop-blur-sm">
+                <Link to="/voice-announcements"><Volume2 className="h-4 w-4 mr-1" /> Voice Announcement</Link>
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -70,6 +80,7 @@ export default function PublicDashboard() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {quickLinks.map((ql) => {
               if (!user && (ql.to === "/feedback" || ql.to === "/surveys")) return null;
+              if (user && ql.requirePublic) return null; // Hide voice announcements for logged-in residents
               const Icon = ql.icon;
               const isEmergency = ql.to === "/emergency";
               return (

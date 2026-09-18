@@ -24,6 +24,7 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import Papa from "papaparse";
+import ExportPasswordDialog from "@/components/ExportPasswordDialog";
 
 // Animated number component
 function AnimatedNumber({ value, duration = 1000 }) {
@@ -133,16 +134,17 @@ export default function AnalyticsReports() {
     channel: "all"
   });
   const [showFilters, setShowFilters] = useState(false);
-  const [training, setTraining] = useState(false);
-  const [trainingProgress, setTrainingProgress] = useState(0);
-  const [trainingStatus, setTrainingStatus] = useState("");
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [pendingExportFormat, setPendingExportFormat] = useState(null);
 
   const handleExport = (format) => {
-    if (format === 'pdf') {
-      exportPDF();
-    } else if (format === 'csv') {
-      exportCSV();
-    }
+    setPendingExportFormat(format);
+    setShowExportDialog(true);
+  };
+
+  const handleConfirmedExport = () => {
+    if (pendingExportFormat === 'pdf') exportPDF();
+    else if (pendingExportFormat === 'csv') exportCSV();
   };
 
   const exportPDF = () => {
@@ -194,32 +196,6 @@ export default function AnalyticsReports() {
     link.href = URL.createObjectURL(blob);
     link.download = 'barangay178-analytics-report.csv';
     link.click();
-  };
-
-  const handleTrainAI = async () => {
-    setTraining(true);
-    setTrainingProgress(0);
-    setTrainingStatus("Initializing AI model...");
-
-    const stages = [
-      { progress: 20, status: "Loading campaign data..." },
-      { progress: 40, status: "Processing engagement patterns..." },
-      { progress: 60, status: "Training prediction model..." },
-      { progress: 80, status: "Validating insights..." },
-      { progress: 100, status: "Training complete!" }
-    ];
-
-    for (const stage of stages) {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setTrainingProgress(stage.progress);
-      setTrainingStatus(stage.status);
-    }
-
-    setTraining(false);
-    setTimeout(() => {
-      setTrainingProgress(0);
-      setTrainingStatus("");
-    }, 3000);
   };
 
   return (
@@ -380,7 +356,7 @@ export default function AnalyticsReports() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><Brain className="h-4 w-4 text-primary" /> AI-Powered Analytics</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">AI-Powered Analytics</CardTitle>
           <CardDescription>Machine learning insights and predictions based on campaign data</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -423,6 +399,12 @@ export default function AnalyticsReports() {
           </div>
         </CardContent>
       </Card>
+      <ExportPasswordDialog
+        open={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        onConfirm={handleConfirmedExport}
+        title={`Export ${pendingExportFormat?.toUpperCase() ?? ''} Report`}
+      />
     </div>
   );
 }

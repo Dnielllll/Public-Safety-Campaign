@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Search, Calendar, Archive, Trash2, Wand2, Loader2, RefreshCw, CheckSquare, MessageSquare, AlertTriangle } from "lucide-react";
+import { Plus, Search, Calendar, Archive, Trash2, Wand2, Loader2, RefreshCw, CheckSquare, MessageSquare, AlertTriangle, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ const statusLabel = {
 export default function CampaignManagement() {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -57,7 +58,7 @@ export default function CampaignManagement() {
     try {
       const { data, error } = await supabase
         .from("campaigns")
-        .select("*")
+        .select("*, users(name, email)")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -65,6 +66,7 @@ export default function CampaignManagement() {
         setCampaigns(data.map(c => ({
           ...c,
           category: c.campaign_type || "community",
+          creatorName: c.users?.name || c.users?.email || "Unknown",
         })));
       }
     } catch (err) {
@@ -72,6 +74,12 @@ export default function CampaignManagement() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchCampaigns();
+    setRefreshing(false);
   };
 
   const filtered = campaigns.filter((c) =>
@@ -166,11 +174,40 @@ export default function CampaignManagement() {
     if (!editingId) return;
     setActionLoading(true);
     try {
+      const campaign = campaigns.find(c => c.id === editingId);
       const { error } = await supabase
         .from("campaigns")
         .update({ status: "published" })
         .eq("id", editingId);
       if (error) throw error;
+
+      // Create notification for approved campaign
+      if (campaign) {
+        try {
+          const { data: users } = await supabase
+            .from("users")
+            .select("id")
+            .in("role", ["staff", "citizen", "public"]);
+
+          if (users && users.length > 0) {
+            const notifications = users.map(user => ({
+              recipient_id: user.id,
+              campaign_id: editingId,
+              title: `New Campaign Published: ${campaign.title}`,
+              message: `A new safety campaign "${campaign.title}" by ${campaign.creatorName} has been published and is now available for viewing.`,
+              type: "campaign",
+              status: "unread"
+            }));
+
+            await supabase
+              .from("notifications")
+              .insert(notifications);
+          }
+        } catch (notifError) {
+          console.error("Error creating notifications:", notifError);
+        }
+      }
+
       await fetchCampaigns();
       setOpen(false);
     } catch (err) {
@@ -232,8 +269,8 @@ export default function CampaignManagement() {
           <p className="text-muted-foreground text-sm">Create, edit, schedule, and manage public safety campaigns.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={fetchCampaigns} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          <Button variant="outline" size="icon" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
           <Dialog open={open} onOpenChange={(val) => {
             setOpen(val);
@@ -418,6 +455,10 @@ export default function CampaignManagement() {
                 <CardDescription className="capitalize">
                   {(c.category || c.campaign_type || "general").replace(/_/g, " ")}
                 </CardDescription>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                  <User className="h-3 w-3" />
+                  <span>Created by: {c.creatorName}</span>
+                </div>
                 {(c.status === "submitted" || c.status === "pending_approval") && (
                   <p className="text-xs text-amber-600 mt-1">⚠️ Awaiting your review</p>
                 )}

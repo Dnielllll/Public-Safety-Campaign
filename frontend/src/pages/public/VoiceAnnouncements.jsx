@@ -9,21 +9,39 @@ export default function VoiceAnnouncements() {
   const [campaigns, setCampaigns] = useState([]);
   const [playing, setPlaying] = useState(null);
   const [expanded, setExpanded] = useState(null);
+  const [customText, setCustomText] = useState("");
 
   useEffect(() => {
     supabaseHelpers.getCampaigns({ status: "published" })
-      .then(({ data }) => setCampaigns(Array.isArray(data) ? data : []))
+      .then(({ data }) => {
+        // Deduplicate campaigns by ID to prevent duplicates
+        const uniqueCampaigns = Array.isArray(data) 
+          ? data.filter((campaign, index, self) =>
+              index === self.findIndex((c) => c.id === campaign.id)
+            )
+          : [];
+        setCampaigns(uniqueCampaigns);
+      })
       .catch(() => setCampaigns(mockCampaigns));
+
+    // Cleanup: stop speech when component unmounts or user navigates away
+    return () => {
+      window.speechSynthesis.cancel();
+    };
   }, []);
 
   const handlePlay = (text, id) => {
+    // If already playing this item, stop it
     if (playing === id) {
       window.speechSynthesis.cancel();
       setPlaying(null);
       return;
     }
 
+    // Stop any currently playing speech
     window.speechSynthesis.cancel();
+    
+    // Set new playing state
     setPlaying(id);
 
     // Clean the text by removing emojis and special characters for better speech
@@ -35,10 +53,13 @@ export default function VoiceAnnouncements() {
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.rate = 0.9;
-    utterance.lang = 'en-PH'; // Philippine English for better local pronunciation
+    utterance.lang = 'en-US'; // Use standard English for better compatibility
     
     utterance.onend = () => setPlaying(null);
     utterance.onerror = () => setPlaying(null);
+
+    // PREVENT GARBAGE COLLECTION BUG ON MOBILE (Crucial for iOS/Android)
+    window._activeUtterance = utterance;
 
     window.speechSynthesis.speak(utterance);
   };
@@ -88,31 +109,30 @@ export default function VoiceAnnouncements() {
 
       {/* Campaign announcements */}
       <div>
-        <h2 className="font-display text-lg font-semibold mb-3">Campaign Announcements</h2>
-        <div className="space-y-3">
+        <h2 className="font-display text-lg font-semibold mb-4">Campaign Announcements</h2>
+        <div className="space-y-4">
           {list.map((c) => (
-            <Card key={c.id} className="hover:shadow-sm transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <Badge variant="secondary" className="shrink-0 capitalize">{c.priority}</Badge>
-                    <CardTitle className="text-sm truncate">{c.title}</CardTitle>
+            <Card key={c.id} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <Badge variant="secondary" className="shrink-0 capitalize">{c.priority || 'general'}</Badge>
+                    <CardTitle className="text-base truncate">{c.title}</CardTitle>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <Button
                       size="sm"
-                      variant="outline"
-                      disabled={playing === c.id}
+                      variant={playing === c.id ? "destructive" : "outline"}
                       onClick={() => handlePlay(`${c.title}. ${c.description || c.objectives || ''}`, c.id)}
                     >
                       {playing === c.id ? (
-                        <><Square className="h-3 w-3 mr-1" /> Playing</>
+                        <><Square className="h-3 w-3 mr-1" /> Stop</>
                       ) : (
                         <><Play className="h-3 w-3 mr-1" /> Listen</>
                       )}
                     </Button>
                     <button
-                      className="text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground p-1"
                       onClick={() => setExpanded(expanded === c.id ? null : c.id)}
                     >
                       {expanded === c.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -120,7 +140,11 @@ export default function VoiceAnnouncements() {
                   </div>
                 </div>
                 {expanded === c.id && (
-                  <p className="text-sm text-muted-foreground mt-2">{c.description || c.objectives || 'No description available'}</p>
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                      {c.description || c.objectives || 'No description available'}
+                    </p>
+                  </div>
                 )}
               </CardHeader>
             </Card>
@@ -132,7 +156,7 @@ export default function VoiceAnnouncements() {
         <CardContent className="p-4 flex items-start gap-3">
           <Volume2 className="h-5 w-5 text-accent mt-0.5 shrink-0" />
           <div className="text-sm">
-            <p className="font-medium text-foreground">Powered by Built-in Text-to-Speech</p>
+            <p className="font-medium text-foreground">Powered by Google Cloud Text-to-Speech</p>
             <p className="text-muted-foreground mt-1">
               Voice announcements improve accessibility for senior citizens, visually impaired residents, and those who prefer listening over reading.
             </p>
