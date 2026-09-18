@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/lib/supabase";
+import { logAuditEvent } from "@/lib/auditLogger.js";
 
 export default function SystemSettings() {
   const { user, reloadSystemSettings, cleanupAuthSettings } = useAuth();
@@ -168,6 +169,16 @@ export default function SystemSettings() {
         if (result.error) throw result.error;
 
         console.log("Settings saved successfully to database");
+
+        // Log settings update event
+        try {
+          await logAuditEvent('settings.updated', 'System Settings', user.id, {
+            setting_category: section,
+            settings_changed: Object.keys(settingsData)
+          });
+        } catch (auditError) {
+          console.error('Failed to log settings update:', auditError);
+        }
 
         // Special handling for maintenance mode - trigger recheck
         if (section === 'General') {

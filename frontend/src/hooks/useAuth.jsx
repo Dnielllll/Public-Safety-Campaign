@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { supabase, supabaseHelpers } from "@/lib/supabase.js";
+import { logAuditEvent } from "@/lib/auditLogger.js";
 
 const AuthContext = createContext(null);
 
@@ -365,9 +366,10 @@ export function AuthProvider({ children }) {
 
       const timeoutMs = timeoutMinutes * 60 * 1000;
 
+      // Set automatic logout on timeout
       timeoutRef.current = setTimeout(() => {
-        // Inactivity timeout reached
-        localStorage.setItem("logout_message", "Your session has expired due to inactivity, Please log in again.");
+        // Inactivity timeout reached - automatic logout
+        localStorage.setItem("logout_message", "Your session has expired due to inactivity. Please log in again.");
         logout();
       }, timeoutMs);
     };
@@ -542,24 +544,19 @@ export function AuthProvider({ children }) {
         // Don't block login if reset function doesn't exist
       }
 
-      // Log login event to audit trail
+      // Log login event to audit trail using centralized logging
       try {
-        await supabase.from('audit_trail').insert({
-          actor: profile.name || profile.email,
-          action: 'user.login',
-          entity: 'System Login',
-          user_id: profile.id,
-          timestamp: new Date().toISOString(),
-          metadata: {
-            email: profile.email,
-            role: profile.role,
-            ip_address: 'N/A' // In production, get actual IP
-          }
+        await logAuditEvent('user.login', 'System Login', profile.id, {
+          email: profile.email,
+          role: profile.role
         });
       } catch (auditError) {
         console.error("Failed to log login event:", auditError);
         // Don't block login if audit logging fails
       }
+
+      // Store login time for session duration calculation
+      localStorage.setItem('login_time', new Date().toISOString());
 
       setUser(profile);
       return profile;
@@ -570,20 +567,15 @@ export function AuthProvider({ children }) {
 
   // Logout using Supabase Auth
   const logout = async () => {
-    // Log logout event to audit trail before signing out
+    // Log logout event to audit trail before signing out using centralized logging
     if (user) {
       try {
-        await supabase.from('audit_trail').insert({
-          actor: user.name || user.email,
-          action: 'user.logout',
-          entity: 'System Logout',
-          user_id: user.id,
-          timestamp: new Date().toISOString(),
-          metadata: {
-            email: user.email,
-            role: user.role,
-            ip_address: 'N/A' // In production, get actual IP
-          }
+        // Calculate session duration (simplified - in production you'd track actual login time)
+        const loginTime = localStorage.getItem('login_time') || new Date().toISOString();
+        const sessionDuration = Math.round((new Date() - new Date(loginTime)) / 1000 / 60); // in minutes
+        
+        await logAuditEvent('user.logout', 'System Logout', user.id, {
+          session_duration: `${sessionDuration} minutes`
         });
       } catch (auditError) {
         console.error("Failed to log logout event:", auditError);
@@ -600,6 +592,7 @@ export function AuthProvider({ children }) {
       "auth_settings",
       "maintenance_mode",
       "maintenance_message",
+      "login_time",
       // Clear all OTP-related data
       ...Object.keys(localStorage).filter(key => key.startsWith('otp_')),
       ...Object.keys(localStorage).filter(key => key.startsWith('otp_verified_at_')),

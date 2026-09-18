@@ -160,8 +160,8 @@ export default function PublicLayout() {
   if (user.role === 'citizen' || user.role === 'public') {
     return (
       <div className="min-h-screen flex flex-col bg-background">
-        <div className="flex flex-1">
         {loggingOut && <LogoutOverlay onDone={doLogout} />}
+        <div className="flex flex-1">
         {/* Sidebar - Desktop */}
         <aside className="hidden lg:flex flex-col w-64 border-r border-border bg-white sticky top-0 h-[calc(100vh-40px)]">
           {/* Logo section */}

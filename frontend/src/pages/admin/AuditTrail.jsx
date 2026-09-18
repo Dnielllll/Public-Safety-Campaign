@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { supabase } from "@/lib/supabase.js";
 import ExportPasswordDialog from "@/components/ExportPasswordDialog";
 
+
 const actionIcon = {
   "user.created": User,
   "user.updated": User,
@@ -102,8 +103,8 @@ export default function AuditTrail() {
           entity_id: payload.new.entity_id,
           old_values: payload.new.old_values || {},
           new_values: payload.new.new_values || {},
-          ip_address: payload.new.ip_address,
-          user_agent: payload.new.user_agent
+          ip_address: payload.new.ip_address || 'Unknown',
+          user_agent: payload.new.user_agent || 'Unknown'
         };
         setLogs(prev => [newLog, ...prev]);
         setLastUpdateTime(new Date());
@@ -129,8 +130,8 @@ export default function AuditTrail() {
                 entity_id: payload.new.entity_id,
                 old_values: payload.new.old_values || log.old_values,
                 new_values: payload.new.new_values || log.new_values,
-                ip_address: payload.new.ip_address,
-                user_agent: payload.new.user_agent
+                ip_address: payload.new.ip_address || log.ip_address,
+                user_agent: payload.new.user_agent || log.user_agent
               }
             : log
         ));

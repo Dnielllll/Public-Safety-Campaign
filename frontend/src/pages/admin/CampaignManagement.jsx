@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { generateAIResponse } from "@/lib/ai.js";
 import { supabase, supabaseHelpers } from "@/lib/supabase.js";
+import { logAuditEvent } from "@/lib/auditLogger.js";
+import { useAuth } from "@/hooks/useAuth";
 
 const statusVariant = {
   draft: "outline",
@@ -36,6 +38,7 @@ const statusLabel = {
 };
 
 export default function CampaignManagement() {
+  const { user } = useAuth();
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -141,7 +144,7 @@ export default function CampaignManagement() {
   const saveCampaign = async () => {
     setSaving(true);
     try {
-      const { user } = await supabaseHelpers.getAuthUser();
+      const { user: authUser } = await supabaseHelpers.getAuthUser();
       const payload = {
         title: form.title,
         description: form.objectives,
@@ -153,10 +156,30 @@ export default function CampaignManagement() {
       if (editingId) {
         const { error } = await supabase.from("campaigns").update(payload).eq("id", editingId);
         if (error) throw error;
+        
+        // Log campaign update event
+        try {
+          await logAuditEvent('campaign.updated', 'Campaign Management', user.id, {
+            campaign_id: editingId,
+            campaign_name: form.title
+          });
+        } catch (auditError) {
+          console.error('Failed to log campaign update:', auditError);
+        }
       } else {
-        payload.created_by = user?.id;
-        const { error } = await supabase.from("campaigns").insert(payload);
+        payload.created_by = authUser?.id;
+        const { data, error } = await supabase.from("campaigns").insert(payload).select('id').single();
         if (error) throw error;
+        
+        // Log campaign creation event
+        try {
+          await logAuditEvent('campaign.created', 'Campaign Management', user.id, {
+            campaign_id: data.id,
+            campaign_name: form.title
+          });
+        } catch (auditError) {
+          console.error('Failed to log campaign creation:', auditError);
+        }
       }
 
       await fetchCampaigns();

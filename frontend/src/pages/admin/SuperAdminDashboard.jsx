@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/lib/supabase";
+import ExportPasswordDialog from "@/components/ExportPasswordDialog";
 
 export default function SuperAdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -17,6 +18,7 @@ export default function SuperAdminDashboard() {
   const [showSystemControlDialog, setShowSystemControlDialog] = useState(false);
   const [showSecurityDialog, setShowSecurityDialog] = useState(false);
   const [showBackupDialog, setShowBackupDialog] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
   const [systemSettings, setSystemSettings] = useState({
     maintenanceMode: false,
     registrationEnabled: true,
@@ -153,12 +155,29 @@ export default function SuperAdminDashboard() {
 
   const handleSystemControl = async (action) => {
     try {
+      // For export_data, show password dialog first
+      if (action === 'export_data') {
+        setShowExportDialog(true);
+        return;
+      }
+      
       // In production, this would call actual system control APIs
       console.log('System control action:', action);
       alert(`System control action "${action}" triggered successfully`);
     } catch (error) {
       console.error('Error executing system control:', error);
       alert('Error executing system control: ' + error.message);
+    }
+  };
+
+  const handleExportData = async () => {
+    try {
+      // In production, this would export all system data
+      console.log('Exporting all system data');
+      alert('System data exported successfully');
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      alert('Error exporting system data');
     }
   };
 
@@ -740,6 +759,13 @@ export default function SuperAdminDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      <ExportPasswordDialog
+        open={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        onConfirm={handleExportData}
+        title="Export All System Data"
+      />
     </div>
   );
 }
