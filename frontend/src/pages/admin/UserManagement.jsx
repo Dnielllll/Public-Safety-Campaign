@@ -134,15 +134,36 @@ export default function UserManagement() {
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
+    console.log('Attempting to delete user:', userId);
+    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      console.log('Delete cancelled by user');
+      return;
+    }
 
     try {
-      // Use RPC function to properly delete from both auth.users and public.users
-      const { error } = await supabase.rpc('delete_user_by_admin', {
+      console.log('Calling delete_user_by_admin RPC for user:', userId);
+      
+      // Try to use RPC function first
+      const { error: rpcError } = await supabase.rpc('delete_user_by_admin', {
         p_user_id: userId
       });
 
-      if (error) throw error;
+      if (rpcError) {
+        console.warn('RPC function failed, falling back to direct delete:', rpcError);
+        // Fallback: Direct delete from public.users (auth.users cleanup handled separately)
+        const { error: deleteError } = await supabase
+          .from('users')
+          .delete()
+          .eq('id', userId);
+
+        if (deleteError) throw deleteError;
+        
+        alert('User deleted from database. Note: Auth user may need manual cleanup.');
+      } else {
+        console.log('User deleted successfully via RPC');
+        alert('User deleted successfully');
+      }
+      
       await fetchUsers();
     } catch (error) {
       console.error('Error deleting user:', error);
@@ -219,27 +240,34 @@ export default function UserManagement() {
     }
   };
 
-  const handleExportUsers = () => {
-    const csvContent = [
-      ['Name', 'Email', 'Phone', 'Address', 'Role', 'Status', 'Created At'].join(','),
-      ...filteredUsers.map(user => [
-        user.name || '',
-        user.email || '',
-        user.phone || '',
-        user.address || '',
-        user.role || '',
-        'Active',
-        new Date(user.created_at).toLocaleString(),
-      ].join(','))
-    ].join('\n');
+  const handleExportUsers = async () => {
+    try {
+      const csvContent = [
+        ['Name', 'Email', 'Phone', 'Address', 'Role', 'Status', 'Created At'].join(','),
+        ...filteredUsers.map(user => [
+          user.name || '',
+          user.email || '',
+          user.phone || '',
+          user.address || '',
+          user.role || '',
+          'Active',
+          new Date(user.created_at).toLocaleString(),
+        ].join(','))
+      ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `users_export_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `users_export_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      
+      alert('Users exported successfully');
+    } catch (error) {
+      console.error('Error exporting users:', error);
+      alert('Error exporting users: ' + error.message);
+    }
   };
 
   const filteredUsers = users.filter(user => {
