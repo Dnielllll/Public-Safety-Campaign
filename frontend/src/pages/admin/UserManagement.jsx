@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/lib/supabase";
 import ExportPasswordDialog from "@/components/ExportPasswordDialog";
+import { useAutoSave } from "@/hooks/useAutoSave.js";
+import AutoSaveIndicator from "@/components/AutoSaveIndicator.jsx";
 
 import { useAuth } from "@/hooks/useAuth";
 
@@ -32,14 +34,19 @@ export default function UserManagement() {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState('');
 
-  const [newUser, setNewUser] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    address: '',
-    role: 'staff',
-    password: '',
-  });
+  // Auto-save for new user form
+  const [newUser, setNewUser, isUserFormSaved, clearUserFormSave] = useAutoSave(
+    'new_user_draft',
+    {
+      name: '',
+      email: '',
+      phone: '',
+      address: '',
+      role: 'staff',
+      password: '',
+    },
+    4000 // Save every 4 seconds
+  );
 
   useEffect(() => {
     fetchUsers();
@@ -118,6 +125,7 @@ export default function UserManagement() {
       setGeneratedPassword(newUser.password);
       setShowPasswordDialog(true);
       setNewUser({ name: '', email: '', phone: '', address: '', role: 'staff', password: '' });
+      clearUserFormSave(); // Clear auto-save data after successful submission
       await fetchUsers();
     } catch (error) {
       console.error('Error adding user:', error);
@@ -326,7 +334,10 @@ export default function UserManagement() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add New User</DialogTitle>
+                <div className="flex items-center justify-between">
+                  <DialogTitle>Add New User</DialogTitle>
+                  <AutoSaveIndicator isSaved={isUserFormSaved} />
+                </div>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -389,7 +400,11 @@ export default function UserManagement() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => {
+                  setNewUser({ name: '', email: '', phone: '', address: '', role: 'staff', password: '' });
+                  clearUserFormSave();
+                  setShowAddDialog(false);
+                }}>Cancel</Button>
                 <Button onClick={handleAddUser}>Add User</Button>
               </DialogFooter>
             </DialogContent>

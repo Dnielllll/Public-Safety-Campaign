@@ -10,6 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { supabaseHelpers, supabase } from "@/lib/supabase.js";
 import { AIAPI } from "@/lib/api.js";
+import { useAutoSave } from "@/hooks/useAutoSave.js";
+import AutoSaveIndicator from "@/components/AutoSaveIndicator.jsx";
+import { useAuth } from "@/hooks/useAuth.jsx";
 
 const statusVariant = {
   draft: "outline",
@@ -36,10 +39,18 @@ const statusLabel = {
 };
 
 export default function StaffCampaigns() {
+  const { user } = useAuth();
   const [campaigns, setCampaigns] = useState([]);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", objectives: "", category: "general" });
+  
+  // Auto-save for campaign form
+  const [form, setForm, isFormSaved, clearFormSave] = useAutoSave(
+    'campaign_draft',
+    { title: "", objectives: "", category: "general" },
+    3000 // Save every 3 seconds
+  );
+  
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [voice, setVoice] = useState("fil-PH-Wavenet-A");
@@ -63,7 +74,6 @@ export default function StaffCampaigns() {
   const fetchCampaigns = async () => {
     setFetching(true);
     try {
-      const { user } = await supabaseHelpers.getAuthUser();
       if (user) {
         console.log("Current user ID:", user.id);
         console.log("Current user email:", user.email);
@@ -125,7 +135,6 @@ export default function StaffCampaigns() {
     if (!form.title.trim()) return;
     setLoading(true);
     try {
-      const { user } = await supabaseHelpers.getAuthUser();
       if (form.id) {
         const { data } = await supabaseHelpers.updateCampaign(form.id, {
           title: form.title,
@@ -152,6 +161,7 @@ export default function StaffCampaigns() {
       console.error("Failed to save draft:", error);
     } finally {
       setForm({ title: "", objectives: "", category: "general" });
+      clearFormSave(); // Clear auto-save data after successful submission
       setOpen(false);
       setLoading(false);
     }
@@ -257,7 +267,10 @@ export default function StaffCampaigns() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{form.id ? "Edit Campaign" : "New Campaign Draft"}</DialogTitle>
+              <div className="flex items-center justify-between">
+                <DialogTitle>{form.id ? "Edit Campaign" : "New Campaign Draft"}</DialogTitle>
+                <AutoSaveIndicator isSaved={isFormSaved} />
+              </div>
             </DialogHeader>
             {form.currentStatus === "needs_revision" && (
               <div className="flex gap-2 items-start rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
@@ -334,7 +347,11 @@ export default function StaffCampaigns() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => {
+                setForm({ title: "", objectives: "", category: "general" });
+                clearFormSave();
+                setOpen(false);
+              }}>Cancel</Button>
               <Button onClick={saveDraft} disabled={loading || !form.title.trim()}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
                 {loading ? "Saving..." : "Save Draft"}
