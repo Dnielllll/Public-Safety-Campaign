@@ -8,7 +8,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/ThemeToggle.jsx";
 import LogoutOverlay from "@/components/LogoutOverlay.jsx";
 import AIChatbot from "@/components/AIChatbot.jsx";
-import OfflineIndicator from "@/components/OfflineIndicator.jsx";
+
 
 const navItems = [
   { to: "/", label: "Home", icon: Home },
@@ -47,7 +47,6 @@ export default function PublicLayout() {
   if (!user || !user.role) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
-        <OfflineIndicator />
         {/* Top navigation bar */}
         <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur shadow-sm">
           <div className="container flex h-16 items-center justify-between">
@@ -161,7 +160,6 @@ export default function PublicLayout() {
   if (user.role === 'citizen' || user.role === 'public') {
     return (
       <div className="min-h-screen flex flex-col bg-background">
-        <OfflineIndicator />
         <div className="flex flex-1">
         {loggingOut && <LogoutOverlay onDone={doLogout} />}
         {/* Sidebar - Desktop */}

@@ -22,36 +22,9 @@ export default function SafetyCampaigns() {
   const [priority, setPriority] = useState("All");
   const [selected, setSelected] = useState(null);
   const [playing, setPlaying] = useState(false);
-  const [cachedCampaigns, setCachedCampaigns] = useState([]);
-  const [downloading, setDownloading] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [useMock, setUseMock] = useState(false);
-
-  // Load campaigns from service worker cache (used when offline)
-  const loadCachedCampaignData = () => {
-    return new Promise((resolve) => {
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        const channel = new MessageChannel();
-        
-        // Set a timeout in case the service worker doesn't respond
-        const timeout = setTimeout(() => {
-          resolve([]);
-        }, 3000);
-        
-        navigator.serviceWorker.controller.postMessage({
-          type: 'GET_ALL_CACHED_CAMPAIGN_DATA'
-        }, [channel.port1]);
-        
-        channel.port2.onmessage = (event) => {
-          clearTimeout(timeout);
-          resolve(event.data.campaigns || []);
-        };
-      } else {
-        resolve([]);
-      }
-    });
-  };
 
   // Stop voice announcement when component unmounts or page changes
   useEffect(() => {
@@ -73,18 +46,6 @@ export default function SafetyCampaigns() {
       .then(({ data, error }) => {
         if (error) {
           console.error("Campaign fetch error:", error);
-          // If offline, try to load from cache
-          if (!navigator.onLine) {
-            return loadCachedCampaignData().then((cachedData) => {
-              if (cachedData.length > 0) {
-                setCampaigns(cachedData);
-                setUseMock(false);
-              } else {
-                setUseMock(true);
-                setCampaigns([]);
-              }
-            });
-          }
           setUseMock(true);
           setCampaigns([]);
         } else {
@@ -103,27 +64,10 @@ export default function SafetyCampaigns() {
         }
       })
       .catch(() => {
-        // Network error — try offline cache
-        if (!navigator.onLine) {
-          loadCachedCampaignData().then((cachedData) => {
-            if (cachedData.length > 0) {
-              setCampaigns(cachedData);
-              setUseMock(false);
-            } else {
-              setUseMock(true);
-              setCampaigns([]);
-            }
-            setLoading(false);
-          });
-          return;
-        }
         setUseMock(true);
         setCampaigns([]);
       })
       .finally(() => setLoading(false));
-    
-    // Load cached campaigns
-    loadCachedCampaigns();
   }, []);
 
   const fetchCampaignContent = async (campaignsList) => {
@@ -158,52 +102,7 @@ export default function SafetyCampaigns() {
     }
   };
 
-  const loadCachedCampaigns = () => {
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      const channel = new MessageChannel();
-      
-      navigator.serviceWorker.controller.postMessage({
-        type: 'GET_CACHED_CAMPAIGNS'
-      }, [channel.port1]);
-      
-      channel.port2.onmessage = (event) => {
-        setCachedCampaigns(event.data.campaignIds || []);
-      };
-    }
-  };
 
-  const cacheCampaign = (campaign) => {
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      setDownloading(campaign.id);
-      
-      navigator.serviceWorker.controller.postMessage({
-        type: 'CACHE_CAMPAIGN',
-        campaignId: campaign.id,
-        campaignData: campaign
-      });
-      
-      // Simulate caching delay and update UI
-      setTimeout(() => {
-        setDownloading(null);
-        loadCachedCampaigns();
-      }, 1000);
-    }
-  };
-
-  const removeCachedCampaign = (campaignId) => {
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      const channel = new MessageChannel();
-      
-      navigator.serviceWorker.controller.postMessage({
-        type: 'CLEAR_CAMPAIGN_CACHE',
-        campaignId: campaignId
-      }, [channel.port1]);
-      
-      channel.port2.onmessage = () => {
-        loadCachedCampaigns();
-      };
-    }
-  };
 
   useEffect(() => {
     if (id) {
@@ -424,17 +323,8 @@ export default function SafetyCampaigns() {
       {!loading && displayed.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           <Megaphone className="h-10 w-10 mx-auto mb-2 opacity-30" />
-          {!navigator.onLine ? (
-            <>
-              <p className="font-medium">No campaigns saved for offline viewing.</p>
-              <p className="text-xs mt-1">Campaigns will be available for offline viewing when this feature is enabled.</p>
-            </>
-          ) : (
-            <>
-              <p className="font-medium">No published campaigns yet.</p>
-              <p className="text-xs mt-1">Campaigns approved by the admin will appear here.</p>
-            </>
-          )}
+          <p className="font-medium">No published campaigns yet.</p>
+          <p className="text-xs mt-1">Campaigns approved by the admin will appear here.</p>
         </div>
       )}
     </div>
