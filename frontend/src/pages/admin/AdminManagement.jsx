@@ -10,8 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/lib/supabase";
-import { useAutoSave } from "@/hooks/useAutoSave.js";
-import AutoSaveIndicator from "@/components/AutoSaveIndicator.jsx";
 
 const availableModules = [
   { id: 'user_management', name: 'User Management', icon: Users },
@@ -35,20 +33,16 @@ export default function AdminManagement() {
   const [selectedAdmin, setSelectedAdmin] = useState(null);
   const [onlineAdmins, setOnlineAdmins] = useState(new Set());
 
-  // Auto-save for new admin form
-  const [newAdmin, setNewAdmin, isAdminFormSaved, clearAdminFormSave] = useAutoSave(
-    'new_admin_draft',
-    {
-      name: '',
-      email: '',
-      phone: '',
-      address: '',
-      role: 'admin',
-      password: '',
-      allowed_modules: [],
-    },
-    4000 // Save every 4 seconds
-  );
+  // New admin form state
+  const [newAdmin, setNewAdmin] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    role: 'admin',
+    password: '',
+    allowed_modules: [],
+  });
 
   useEffect(() => {
     fetchAdmins();
@@ -116,6 +110,7 @@ export default function AdminManagement() {
               role: newAdmin.role,
               allowed_modules: newAdmin.allowed_modules,
             },
+            emailRedirectTo: undefined, // Disable email confirmation
           },
         });
 
@@ -144,7 +139,6 @@ export default function AdminManagement() {
       
       setShowAddDialog(false);
       setNewAdmin({ name: '', email: '', phone: '', address: '', role: 'admin', password: '', allowed_modules: [] });
-      clearAdminFormSave(); // Clear auto-save data after successful submission
       await fetchAdmins();
       alert('Admin added successfully!');
     } catch (error) {
@@ -245,10 +239,7 @@ export default function AdminManagement() {
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
-                <div className="flex items-center justify-between">
-                  <DialogTitle>Add New Admin</DialogTitle>
-                  <AutoSaveIndicator isSaved={isAdminFormSaved} />
-                </div>
+                <DialogTitle>Add New Admin</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -343,7 +334,6 @@ export default function AdminManagement() {
               <DialogFooter>
                 <Button variant="outline" onClick={() => {
                   setNewAdmin({ name: '', email: '', phone: '', address: '', role: 'admin', password: '', allowed_modules: [] });
-                  clearAdminFormSave();
                   setShowAddDialog(false);
                 }}>Cancel</Button>
                 <Button onClick={handleAddAdmin}>Add Admin</Button>

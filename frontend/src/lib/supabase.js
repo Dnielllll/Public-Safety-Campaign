@@ -20,7 +20,7 @@ export const supabaseAdmin = supabaseServiceRoleKey
 
 // Auth Helpers using real Supabase Auth
 export const supabaseHelpers = {
-  // Register via Supabase Auth (trigger auto-inserts into public.users)
+  // Register via Supabase Auth with email confirmation disabled
   async signUp(email, password, userData = {}) {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -32,6 +32,7 @@ export const supabaseHelpers = {
           address: userData.address || '',
           role: userData.role || 'public',
         },
+        emailRedirectTo: undefined, // Disable email confirmation
       },
     });
     return { data, error };

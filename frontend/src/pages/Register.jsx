@@ -101,17 +101,21 @@ export default function Register() {
 
     setLoading(true);
     try {
-      // Use Supabase Auth signUp — this creates user in auth.users
-      const { data, error: signUpError } = await supabaseHelpers.signUp(
-        form.email,
-        form.password,
-        {
-          name: form.name.trim(),
-          phone: form.phone.trim(),
-          address: form.address.trim(),
-          role: "citizen",
+      // Use Supabase Auth signUp without database insertion
+      // Only creates auth user, no public.users record
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: {
+          data: {
+            name: form.name.trim(),
+            phone: form.phone.trim(),
+            address: form.address.trim(),
+            role: "citizen",
+          },
+          emailRedirectTo: undefined, // Disable email confirmation
         }
-      );
+      });
 
       if (signUpError) {
         if (signUpError.message?.includes("already registered") || signUpError.message?.includes("already been registered")) {
@@ -127,23 +131,7 @@ export default function Register() {
         throw new Error("Registration failed. Please try again.");
       }
 
-      // Manually create user profile in public.users (since trigger is disabled)
-      try {
-        await supabaseHelpers.createUser({
-          id: data.user.id,
-          email: form.email,
-          name: form.name.trim(),
-          phone: form.phone.trim(),
-          address: form.address.trim(),
-          role: "citizen",
-          is_active: true,
-        });
-      } catch (profileError) {
-        console.warn('Failed to create user profile:', profileError.message);
-        // Don't fail registration if profile creation fails
-      }
-
-      // Send welcome email via notification-service
+      // Send welcome email via notification-service (your custom welcome email)
       try {
         console.log('Sending welcome email to:', form.email, 'for user:', form.name.trim());
         await notificationApi.sendWelcome({ email: form.email, name: form.name.trim() });
